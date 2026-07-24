@@ -836,26 +836,6 @@
         >
           About
         </a>
-        <a
-          href="https://github.com/sseki27skt"
-          target="_blank"
-          style="
-            color: white;
-            text-decoration: none;
-            font-size: 12px;
-            opacity: 0.9;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-          "
-        >
-          <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-            <path
-              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"
-            />
-          </svg>
-          sseki27skt
-        </a>
       </div>
       <h1 style="cursor: pointer" onclick="goToHome()">
         雅楽譜 IIIFビューアー
@@ -985,15 +965,15 @@
         </div>
 
         <div class="section">
-          <h2>📂 マニフェスト一覧</h2>
+          <h2>📂 楽譜一覧</h2>
           <div class="manifest-list" id="manifestList">
-            <div class="loading">マニフェスト一覧を読み込み中...</div>
+            <div class="loading">楽譜一覧を読み込み中...</div>
           </div>
         </div>
 
         <div class="section">
           <div class="current-info">
-            <h3>📊 現在のマニフェスト</h3>
+            <h3>📊 現在の楽譜</h3>
             <div class="info-item">
               <span class="info-label">URL:</span><br />
               <span class="info-value" id="currentUrl">未選択</span>
@@ -1353,7 +1333,7 @@
         }
         // ここで受け取るのは常にオリジナルのHTTPS URL
         try {
-          showStatus("マニフェストを読み込み中...", "info");
+          showStatus("楽譜を読み込み中...", "info");
           console.log("Loading manifest (original URL):", originalManifestUrl);
 
           let fetchUrl = originalManifestUrl; // このスクリプトがfetchするためのURL
@@ -1547,9 +1527,9 @@
                         <h3>🔧 代替ビューアー</h3>
                         <p>Universal Viewerが利用できないため、代替手段を提供します：</p>
                         
-                        <h4>📄 マニフェストファイル：</h4>
+                        <h4>📄 楽譜ファイル：</h4>
                         <a href="${manifestUrl}" target="_blank" class="manifest-link">
-                            マニフェストをJSONで表示
+                            楽譜をJSONで表示
                         </a>
                         
                         <h4>🌐 外部ビューアーで開く：</h4>
@@ -1756,11 +1736,11 @@
             return;
           }
 
-          showStatus("マニフェスト一覧を読み込み中...", "info");
+          showStatus("楽譜一覧を読み込み中...", "info");
 
           const listContainer = document.getElementById("manifestList");
           listContainer.innerHTML =
-            '<div class="loading">マニフェスト一覧を読み込み中...</div>';
+            '<div class="loading">楽譜一覧を読み込み中...</div>';
 
           const isLocal =
             window.location.hostname === "localhost" ||
@@ -1802,7 +1782,7 @@
               const errorDiv = document.createElement("div");
               errorDiv.style.cssText =
                 "padding: 10px; color: red; text-align: center;";
-              errorDiv.textContent = `${seriesId} のマニフェスト一覧の読み込みに失敗しました: ${error.message}`;
+              errorDiv.textContent = `${seriesId} の楽譜一覧の読み込みに失敗しました: ${error.message}`;
               listContainer.appendChild(errorDiv);
             }
           };
@@ -1891,7 +1871,7 @@
             listContainer.appendChild(groupContainer);
           }
 
-          showStatus("マニフェスト一覧の読み込みが完了しました", "success");
+          showStatus("楽譜一覧の読み込みが完了しました", "success");
         } catch (error) {
           console.error("Error loading manifest list:", error);
           showStatus(`一覧読み込みエラー: ${error.message}`, "error");
@@ -2004,25 +1984,13 @@
                     • ローカルサーバー不要でアクセス可能
                 </p>
                 <p style="margin: 0 0 5px 0; font-size: 12px; color: #2e7d32;">
-                    • 115巻すべてのマニフェストが利用可能
+                    • 115巻すべての楽譜が利用可能
                 </p>
                 <p style="margin: 0; font-size: 12px; color: #2e7d32;">
                     • Universal Viewerで高解像度表示
                 </p>
             `;
         listContainer.appendChild(helpDiv);
-      }
-
-      // カスタムマニフェストを読み込み
-      function loadCustomManifest() {
-        const url = document.getElementById("customUrl").value.trim();
-        if (!url) {
-          showStatus("URLを入力してください", "error");
-          return;
-        }
-
-        // カスタムURLはそのままloadManifestに渡す（loadManifest内で適切なfetchUrlとuvUrlToPassを判断）
-        loadManifest(url);
       }
 
       // マニフェスト一覧を更新
@@ -2680,7 +2648,7 @@
                         <div style="display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;color:#666;background:#f9f9f9;">
                             <div style="padding:40px;max-width:600px;">
                                 <h2 style="margin:0 0 20px 0;color:#333;">🎼 雅楽譜 IIIF ビューアー</h2>
-                                <p style="margin:0 0 15px 0;font-size:16px;line-height:1.6;">左側のリストからマニフェストを選択してください</p>
+                                <p style="margin:0 0 15px 0;font-size:16px;line-height:1.6;">左側のリストから楽譜を選択してください</p>
                                 <div style="background:#e3f2fd;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #2196f3;">
                                     <p style="margin:0 0 10px 0;font-size:14px;color:#1565c0;font-weight:bold;">📚 利用可能なコレクション：</p>
                                     <p style="margin:0 0 8px 0;font-size:13px;color:#333;">• 宮内庁書陵部所蔵版</p>
@@ -2697,18 +2665,15 @@
                                         現在HTTPSページからHTTPリソースへのアクセスが制限されています。
                                     </p>
                                     <p style="margin:0;font-size:12px;color:#c62828;">
-                                        ローカルマニフェストを表示するには、HTTPでアクセスしてください。
+                                        ローカルの楽譜を表示するには、HTTPでアクセスしてください。
                                     </p>
                                 </div>
                                 `
                                     : ""
                                 }
-                                <p style="margin:20px 0 0 0;font-size:14px;color:#888;">
-                                    または、カスタムURLを入力して任意のIIIFマニフェストを表示できます
-                                </p>
                                 <div style="margin-top:30px;padding:15px;background:#fff3cd;border-radius:6px;border-left:4px solid #ffc107;">
                                     <p style="margin:0;font-size:13px;color:#856404;">
-                                        💡 ヒント: マニフェストを選択すると、高解像度の雅楽譜画像をズーム・パン操作で詳細に閲覧できます
+                                        💡 ヒント: 楽譜を選択すると、高解像度の画像をズーム・パン操作で詳細に閲覧できます
                                     </p>
                                 </div>
                             </div>
@@ -2723,7 +2688,7 @@
         loadManifestList();
 
         showStatus(
-          "マニフェストを選択して雅楽譜の閲覧を開始してください",
+          "楽譜を選択して雅楽譜の閲覧を開始してください",
           "info"
         );
 
