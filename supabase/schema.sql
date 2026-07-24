@@ -1,0 +1,34 @@
+-- 楽曲お気に入り機能のスキーマ（参照用ドキュメント）
+-- ※ テーブルは Supabase ダッシュボード上で作成済み。
+--    このファイルは実際の構成の記録と、再構築時の参考用。
+
+-- 実際の public.favorites の列構成:
+--   id           uuid (PK)
+--   user_id      uuid  … auth.users への参照
+--   piece_name   text  … 楽曲名
+--   instrument   text  … 楽器
+--   mode         text  … 調子
+--   collection   text  … 所蔵（資料）
+--   manifest_url text  … 楽曲マニフェストの公開 URL（お気に入りの照合キー）
+--   created_at   timestamptz
+
+-- RLS は有効（未ログインの書き込みは 42501 で拒否されることを確認済み）。
+-- ログインユーザーが「自分の行だけ」読み書きできるポリシーの例:
+--
+-- alter table public.favorites enable row level security;
+--
+-- create policy "select own favorites"
+--   on public.favorites for select
+--   using (auth.uid() = user_id);
+--
+-- create policy "insert own favorites"
+--   on public.favorites for insert
+--   with check (auth.uid() = user_id);
+--
+-- create policy "delete own favorites"
+--   on public.favorites for delete
+--   using (auth.uid() = user_id);
+
+-- 任意（推奨）: 同じ曲の二重登録を DB レベルでも防ぐ場合
+-- create unique index if not exists favorites_user_manifest_uniq
+--   on public.favorites (user_id, manifest_url);

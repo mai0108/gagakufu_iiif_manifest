@@ -2312,6 +2312,9 @@
                     <div class="piece-item" onclick="loadManifest('${
                       piece["@id"]
                     }')">
+                        ${
+                          window.GFav ? window.GFav.starButtonHtml(piece) : ""
+                        }
                         <div class="piece-title">${
                           meta.piece_name || "名称不明"
                         }</div>
@@ -2345,6 +2348,17 @@
             .join("");
         }
       }
+
+      // お気に入り状態が変わった時に、表示中の検索結果の★/☆を再描画する
+      // （supabase-favorites.js から呼ばれる）
+      window.refreshFavoriteStars = function () {
+        const list = document.getElementById("piecesList");
+        // お気に入り一覧を表示中の場合は検索結果で上書きしない
+        if (list && list.dataset.view === "favorites") return;
+        if (currentSortedResults && currentSortedResults.length) {
+          displayPiecesList(currentSortedResults);
+        }
+      };
 
       // 初期化時に楽曲データを読み込み
       document.addEventListener("DOMContentLoaded", function () {
@@ -2481,5 +2495,9 @@
         updateSearchClearButton();
       });
     </script>
+
+    <!-- お気に入り機能: supabase-js（CDN）と機能モジュール -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-favorites.js"></script>
   </body>
 </html>
