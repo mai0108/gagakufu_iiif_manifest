@@ -320,9 +320,11 @@
   function updateAuthUi(user) {
     const loggedOut = document.getElementById("favLoggedOut");
     const loggedIn = document.getElementById("favLoggedIn");
+    const recover = document.getElementById("favRecoverSection");
     const emailSpan = document.getElementById("favUserEmail");
     if (!loggedOut || !loggedIn) return;
 
+    if (recover) recover.style.display = "none";
     if (user) {
       loggedOut.style.display = "none";
       loggedIn.style.display = "block";
@@ -331,6 +333,18 @@
       loggedOut.style.display = "block";
       loggedIn.style.display = "none";
     }
+  }
+
+  // パスワード再設定リンクからの遷移時に、再設定フォームを表示する
+  function showRecoverForm() {
+    const loggedOut = document.getElementById("favLoggedOut");
+    const loggedIn = document.getElementById("favLoggedIn");
+    const recover = document.getElementById("favRecoverSection");
+    if (!recover) return;
+    if (loggedOut) loggedOut.style.display = "none";
+    if (loggedIn) loggedIn.style.display = "none";
+    recover.style.display = "block";
+    setAuthMsg("", "info");
   }
 
   // ------------------------------------------------------------
@@ -370,12 +384,20 @@
         '    <button class="btn" id="favLoginBtn" style="flex:1;">ログイン</button>' +
         '    <button class="btn secondary" id="favSignupBtn" style="flex:1; margin-left:0;">新規登録</button>' +
         "  </div>" +
+        '  <button type="button" id="favForgotBtn" style="background:none; border:none;' +
+        ' color:#1565c0; font-size:12px; cursor:pointer; padding:6px 0 0; text-decoration:underline;">' +
+        "パスワードをお忘れですか？</button>" +
         "</div>" +
         '<div id="favLoggedIn" style="display:none;">' +
         '  <div style="font-size:13px; color:#333; margin-bottom:8px;">' +
         '    ログイン中: <span id="favUserEmail" style="font-weight:600; word-break:break-all;"></span>' +
         "  </div>" +
         '  <button class="btn-small" id="favLogoutBtn">ログアウト</button>' +
+        "</div>" +
+        '<div id="favRecoverSection" style="display:none;">' +
+        '  <div style="font-size:13px; color:#333; margin-bottom:8px;">新しいパスワードを設定してください</div>' +
+        '  <input type="password" id="favNewPassword" class="fav-input" placeholder="新しいパスワード（6文字以上）" autocomplete="new-password">' +
+        '  <button class="btn" id="favSetNewPasswordBtn" style="width:100%;">パスワードを更新</button>' +
         "</div>" +
         '<div id="favAuthMsg" style="font-size:12px; margin-top:8px; line-height:1.5;"></div>';
       sidebar.insertBefore(sec, sidebar.firstChild);
@@ -419,7 +441,10 @@
     const signupBtn = document.getElementById("favSignupBtn");
     const logoutBtn = document.getElementById("favLogoutBtn");
     const showBtn = document.getElementById("favShowBtn");
+    const forgotBtn = document.getElementById("favForgotBtn");
+    const setNewPasswordBtn = document.getElementById("favSetNewPasswordBtn");
     const pwInput = document.getElementById("favPassword");
+    const newPwInput = document.getElementById("favNewPassword");
 
     function getCreds() {
       const email = (document.getElementById("favEmail").value || "").trim();
@@ -473,6 +498,51 @@
       }
     }
 
+    // パスワードリセットメールの送信
+    async function doForgotPassword() {
+      const email = (document.getElementById("favEmail").value || "").trim();
+      if (!email) {
+        setAuthMsg(
+          "メールアドレス欄に、登録したメールアドレスを入力してから押してください。",
+          "error"
+        );
+        return;
+      }
+      setAuthMsg("送信中...", "info");
+      // このページ自身に戻ってくるようにする（type=recovery付きで再アクセスされる）
+      const redirectTo = window.location.href.split("#")[0];
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectTo,
+      });
+      if (error) {
+        setAuthMsg(jpAuthError(error), "error");
+        return;
+      }
+      setAuthMsg(
+        "パスワードリセットメールを送信しました。メール内のリンクを開いてください。",
+        "success"
+      );
+    }
+
+    // 新しいパスワードの確定（リセットメールのリンクから開いた場合）
+    async function doSetNewPassword() {
+      const pw = (newPwInput && newPwInput.value) || "";
+      if (pw.length < 6) {
+        setAuthMsg("パスワードは6文字以上で入力してください。", "error");
+        return;
+      }
+      setAuthMsg("更新中...", "info");
+      const { data, error } = await client.auth.updateUser({ password: pw });
+      if (error) {
+        setAuthMsg(jpAuthError(error), "error");
+        return;
+      }
+      if (newPwInput) newPwInput.value = "";
+      setAuthMsg("パスワードを更新しました。", "success");
+      updateAuthUi(data && data.user);
+      if (data && data.user) loadFavorites();
+    }
+
     if (loginBtn) loginBtn.addEventListener("click", doLogin);
     if (signupBtn) signupBtn.addEventListener("click", doSignup);
     if (logoutBtn)
@@ -481,11 +551,18 @@
         setAuthMsg("ログアウトしました。", "info");
       });
     if (showBtn) showBtn.addEventListener("click", showFavorites);
+    if (forgotBtn) forgotBtn.addEventListener("click", doForgotPassword);
+    if (setNewPasswordBtn)
+      setNewPasswordBtn.addEventListener("click", doSetNewPassword);
 
-    // Enter キーでログイン
+    // Enter キーでログイン／パスワード更新
     if (pwInput)
       pwInput.addEventListener("keydown", function (e) {
         if (e.key === "Enter") doLogin();
+      });
+    if (newPwInput)
+      newPwInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") doSetNewPassword();
       });
   }
 
@@ -530,6 +607,14 @@
     client.auth.onAuthStateChange(function (event, session) {
       const user = session && session.user;
       GFav.userId = user ? user.id : null;
+
+      // パスワードリセットのリンクから開かれた場合は、通常のログイン表示より
+      // 先に「新しいパスワードを設定」フォームを見せる
+      if (event === "PASSWORD_RECOVERY") {
+        showRecoverForm();
+        return;
+      }
+
       updateAuthUi(user);
       if (user) {
         loadFavorites();
