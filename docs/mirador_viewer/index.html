@@ -93,6 +93,16 @@
                         { key: 'gallery' },
                         { key: 'scroll' }
                     ]
+                },
+                // 高画素密度の端末（iPhone/iPad）向けの画質チューニング
+                osdConfig: {
+                    // 表示中の解像度に対してタイルが粗いままで妥協しない
+                    // （OpenSeadragonのデフォルトは0.5＝2倍まで引き伸ばしを許容）
+                    minPixelRatio: 0.9,
+                    // Retina画面でも実ピクセルまで鮮明に拡大できるようにする
+                    maxZoomPixelRatio: 4,
+                    // タイル切り替え時のフェードを短くして「ぼやけて見える時間」を減らす
+                    blendTime: 0.1
                 }
             };
 

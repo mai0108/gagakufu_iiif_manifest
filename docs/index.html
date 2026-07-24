@@ -31,6 +31,8 @@
           "Helvetica Neue", Arial, sans-serif;
         background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
         height: 100vh;
+        /* モバイルSafariのアドレスバーを考慮した実表示領域の高さ */
+        height: 100dvh;
         display: flex;
         flex-direction: column;
       }
@@ -111,7 +113,7 @@
         background: #fafafa;
       }
 
-      .section h3 {
+      .section h2 {
         color: #333;
         margin-bottom: 10px;
         font-size: 16px;
@@ -325,9 +327,10 @@
         padding: 15px;
       }
 
-      .current-info h4 {
+      .current-info h3 {
         color: #1976d2;
         margin-bottom: 10px;
+        font-size: 16px;
       }
 
       .info-item {
@@ -383,7 +386,7 @@
         margin-bottom: 15px;
       }
 
-      .search-section h3 {
+      .search-section h2 {
         color: #333;
         margin-bottom: 15px;
         font-size: 16px;
@@ -683,6 +686,123 @@
       #mirador:checked + .toggle-label {
         color: white;
       }
+
+      .viewer-description {
+        font-size: 12px;
+        color: #64748b;
+        line-height: 1.5;
+        margin-top: 8px;
+      }
+
+      /* --- 全画面表示 --- */
+      .fullscreen-btn {
+        position: absolute;
+        right: 12px;
+        bottom: calc(12px + env(safe-area-inset-bottom));
+        /* 全画面時にiframeがz-index:9999になるため、常にその上に出す */
+        z-index: 10000;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(30, 41, 59, 0.55);
+        color: white;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        backdrop-filter: blur(4px);
+        transition: background 0.2s;
+      }
+
+      .fullscreen-btn:hover {
+        background: rgba(30, 41, 59, 0.8);
+      }
+
+      /* 全画面API非対応の端末（iPhone）用の疑似全画面 */
+      body.pseudo-fullscreen .header,
+      body.pseudo-fullscreen .menu-toggle-btn {
+        display: none;
+      }
+
+      body.pseudo-fullscreen .viewer-area {
+        position: fixed;
+        inset: 0;
+        z-index: 5000;
+      }
+
+      /* --- モバイル・タブレット対応 --- */
+      .menu-toggle-btn {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        position: fixed;
+        bottom: calc(20px + env(safe-area-inset-bottom));
+        left: 16px;
+        z-index: 2500;
+        background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+        color: white;
+        border: none;
+        border-radius: 999px;
+        padding: 12px 20px;
+        font-size: 14px;
+        font-weight: 600;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        cursor: pointer;
+      }
+
+      .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 2999;
+      }
+
+      @media (max-width: 900px) {
+        .header {
+          padding: 10px 15px;
+        }
+
+        .header > div {
+          position: static !important;
+          margin-bottom: 6px;
+          justify-content: flex-end;
+        }
+
+        .header h1 {
+          font-size: 18px;
+        }
+
+        .header p {
+          display: none;
+        }
+
+        /* サイドバーは左からスライドするドロワーにする */
+        .sidebar {
+          position: fixed;
+          top: 0;
+          left: 0;
+          bottom: 0;
+          width: 85%;
+          max-width: 350px;
+          z-index: 3000;
+          transform: translateX(-105%);
+          transition: transform 0.25s ease;
+          box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .sidebar.open {
+          transform: translateX(0);
+        }
+
+        .sidebar-backdrop.visible {
+          display: block;
+        }
+
+        .menu-toggle-btn {
+          display: flex;
+        }
+      }
     </style>
   </head>
 
@@ -743,10 +863,25 @@
       <p>IIIFで公開されている雅楽譜の閲覧を支援</p>
     </div>
 
+    <button
+      type="button"
+      class="menu-toggle-btn"
+      id="menuToggleBtn"
+      aria-label="曲選択メニューを開閉"
+      onclick="toggleSidebar()"
+    >
+      ☰ 曲を選ぶ
+    </button>
+    <div
+      class="sidebar-backdrop"
+      id="sidebarBackdrop"
+      onclick="toggleSidebar(false)"
+    ></div>
+
     <div class="main-container">
       <div class="sidebar">
         <div class="section">
-          <h3>🖥️ ビューアー選択</h3>
+          <h2>🖥️ ビューアー選択</h2>
           <div class="toggle-container">
             <input
               type="radio"
@@ -769,20 +904,23 @@
             <label for="mirador" class="toggle-label">Mirador</label>
             <div class="toggle-switch"></div>
           </div>
+          <p class="viewer-description" id="viewerDescription"></p>
         </div>
         <div class="search-section" id="search-section">
-          <h3>楽曲検索</h3>
+          <h2>楽曲検索</h2>
           <div class="search-container">
             <input
               type="text"
               id="searchInput"
               class="search-input"
               placeholder="楽曲名を検索..."
-              onInput="searchPieces()"
+              aria-label="楽曲名を検索"
+              oninput="searchPieces()"
             />
             <button
               class="search-clear"
               id="searchClear"
+              aria-label="検索をクリア"
               onclick="clearSearch()"
             >
               ×
@@ -793,6 +931,7 @@
             <select
               id="instrumentFilter"
               class="filter-select"
+              aria-label="楽器で絞り込み"
               onChange="searchPieces()"
             >
               <option value="">楽器</option>
@@ -801,6 +940,7 @@
             <select
               id="modeFilter"
               class="filter-select"
+              aria-label="調子で絞り込み"
               onChange="searchPieces()"
             >
               <option value="">調子</option>
@@ -809,6 +949,7 @@
             <select
               id="collectionFilter"
               class="filter-select"
+              aria-label="資料で絞り込み"
               onChange="searchPieces()"
             >
               <option value="">資料</option>
@@ -828,6 +969,7 @@
                 <select
                   id="sortBy"
                   class="sort-select"
+                  aria-label="検索結果の並び順"
                   onChange="sortSearchResults()"
                 >
                   <option value="page_range">ページ順</option>
@@ -843,7 +985,7 @@
         </div>
 
         <div class="section">
-          <h3>📂 マニフェスト一覧</h3>
+          <h2>📂 マニフェスト一覧</h2>
           <div class="manifest-list" id="manifestList">
             <div class="loading">マニフェスト一覧を読み込み中...</div>
           </div>
@@ -851,7 +993,7 @@
 
         <div class="section">
           <div class="current-info">
-            <h4>📊 現在のマニフェスト</h4>
+            <h3>📊 現在のマニフェスト</h3>
             <div class="info-item">
               <span class="info-label">URL:</span><br />
               <span class="info-value" id="currentUrl">未選択</span>
@@ -870,7 +1012,23 @@
       </div>
 
       <div class="viewer-area">
-        <iframe id="viewerIframe" src="about:blank" allow="fullscreen"></iframe>
+        <button
+          type="button"
+          class="fullscreen-btn"
+          id="fullscreenBtn"
+          aria-label="全画面表示"
+          title="全画面表示"
+          onclick="toggleViewerFullscreen()"
+        >
+          ⛶
+        </button>
+        <iframe
+          id="viewerIframe"
+          src="about:blank"
+          title="譜面ビューアー"
+          loading="lazy"
+          allow="fullscreen"
+        ></iframe>
       </div>
     </div>
 
@@ -1023,6 +1181,84 @@
         }
       }
 
+      // モバイル用：サイドバー（ドロワー）の開閉
+      function toggleSidebar(force) {
+        const sidebar = document.querySelector(".sidebar");
+        const backdrop = document.getElementById("sidebarBackdrop");
+        if (!sidebar || !backdrop) return;
+        const open =
+          typeof force === "boolean"
+            ? force
+            : !sidebar.classList.contains("open");
+        sidebar.classList.toggle("open", open);
+        backdrop.classList.toggle("visible", open);
+      }
+
+      // ビューアーの全画面表示切り替え
+      // PC・iPadは全画面API、非対応のiPhoneはヘッダーを隠す疑似全画面で代替する
+      function toggleViewerFullscreen() {
+        const viewerArea = document.querySelector(".viewer-area");
+        const nativeActive = !!(
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.mozFullScreenElement ||
+          document.msFullscreenElement
+        );
+
+        if (nativeActive) {
+          exitFullscreen();
+          return;
+        }
+
+        if (document.body.classList.contains("pseudo-fullscreen")) {
+          document.body.classList.remove("pseudo-fullscreen");
+          updateFullscreenButton(false);
+          return;
+        }
+
+        if (
+          viewerArea.requestFullscreen ||
+          viewerArea.webkitRequestFullscreen ||
+          viewerArea.mozRequestFullScreen ||
+          viewerArea.msRequestFullscreen
+        ) {
+          // iframeではなくエリアごと全画面にすることで、終了ボタンも表示され続ける
+          requestFullscreen(viewerArea);
+        } else {
+          document.body.classList.add("pseudo-fullscreen");
+          updateFullscreenButton(true);
+        }
+      }
+
+      function updateFullscreenButton(active) {
+        const btn = document.getElementById("fullscreenBtn");
+        if (!btn) return;
+        btn.textContent = active ? "✕" : "⛶";
+        const label = active ? "全画面表示を終了" : "全画面表示";
+        btn.setAttribute("aria-label", label);
+        btn.title = label;
+      }
+
+      // 全画面状態の変化（Escキー等での終了も含む）にボタン表示を追従させる
+      [
+        "fullscreenchange",
+        "webkitfullscreenchange",
+        "mozfullscreenchange",
+        "MSFullscreenChange",
+      ].forEach((eventName) => {
+        document.addEventListener(eventName, () => {
+          const active = !!(
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.mozFullScreenElement ||
+            document.msFullscreenElement
+          );
+          updateFullscreenButton(
+            active || document.body.classList.contains("pseudo-fullscreen")
+          );
+        });
+      });
+
       // ホームページに遷移する関数（ページリロード方式）
       function goToHome() {
         // ページを完全にリロードして初期状態に戻す
@@ -1111,6 +1347,10 @@
 
       // マニフェストを読み込んでビューアーで表示
       async function loadManifest(originalManifestUrl) {
+        // モバイルではメニューを閉じて譜面を見せる
+        if (window.matchMedia("(max-width: 900px)").matches) {
+          toggleSidebar(false);
+        }
         // ここで受け取るのは常にオリジナルのHTTPS URL
         try {
           showStatus("マニフェストを読み込み中...", "info");
@@ -1372,13 +1612,8 @@
             );
           }
 
-          const response = await fetch(fetchUrl, {
-            cache: "no-cache",
-            headers: {
-              "Cache-Control": "no-cache",
-              Pragma: "no-cache",
-            },
-          });
+          // カスタムヘッダーはCORSプリフライトを誘発するため付けない（下記loadPiecesData参照）
+          const response = await fetch(fetchUrl, { cache: "no-cache" });
           if (!response.ok) return null;
 
           const manifest = await response.json();
@@ -1813,10 +2048,9 @@
             try {
                 const responses = await Promise.all(urls.map(url => {
                     let fetchUrl = isLocal ? url.replace(GITHUB_IIIF_BASE_URL, localBaseUrl) : url;
-                    return fetch(fetchUrl, {
-                        cache: 'no-cache',
-                        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-                    });
+                    // 注意: Cache-Control等のカスタムヘッダーを付けるとCORSプリフライトが発生し、
+                    // GitHub PagesはOPTIONSに405を返すため取得に失敗する。付けないこと。
+                    return fetch(fetchUrl, { cache: 'no-cache' });
                 }));
 
                 for (const response of responses) {
@@ -1839,14 +2073,11 @@
                 };
 
                 datasets.forEach(data => {
-                    let pieces = data.pieces || [];
-                    if (isLocal) {
-                        pieces.forEach(piece => {
-                            if (piece['@id'] && piece['@id'].startsWith(GITHUB_IIIF_BASE_URL)) {
-                                piece['@id'] = piece['@id'].replace(GITHUB_IIIF_BASE_URL, localBaseUrl);
-                            }
-                        });
-                    }
+                    // @idは常にGitHub Pagesの正規URLのまま扱う。
+                    // localhostに書き換えると、外部ホストのUniversal Viewerが
+                    // 混在コンテンツ制限でマニフェストを取得できず譜面が表示されない。
+                    // ローカル環境でのfetchはloadManifest側でローカルURLに変換される。
+                    const pieces = data.pieces || [];
                     combinedData.pieces.push(...pieces);
 
                     // 統計情報をマージ
@@ -2378,6 +2609,17 @@
         loadManifestList();
       }
 
+      // 選択中のビューアーに応じた説明文
+      const VIEWER_DESCRIPTIONS = {
+        uv: "📄 1ページずつ高精細表示。拡大してじっくり見るのに向いています",
+        mirador: "📜 巻物のように横に連続スクロールして閲覧できます",
+      };
+
+      function updateViewerDescription() {
+        const el = document.getElementById("viewerDescription");
+        if (el) el.textContent = VIEWER_DESCRIPTIONS[activeViewerType] || "";
+      }
+
       // ビューアー切り替え機能
       function switchViewer() {
         const viewerSelect = document.getElementById("viewerSelect");
@@ -2400,6 +2642,7 @@
             if (event.target.checked) {
               activeViewerType = event.target.value; // 'uv' または 'mirador' をセット
               console.log(`ビューアーを切り替え: ${activeViewerType}`);
+              updateViewerDescription();
 
               // マニフェストが既に読み込まれている場合は、新しいビューアーで再読み込み
               if (currentManifestUrl) {
@@ -2414,6 +2657,7 @@
         if (initialViewer) {
           activeViewerType = initialViewer.value;
         }
+        updateViewerDescription();
 
         // プロトコルの問題を早期検出
         const hasProtocolIssue = detectProtocolIssue();
