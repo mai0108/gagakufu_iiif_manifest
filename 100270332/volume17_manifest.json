@@ -1,6 +1,6 @@
 {
   "@context": "http://iiif.io/api/presentation/2/context.json",
-  "@id": "https://sseki27skt.github.io/gagakufu_iiif_manifest/100270332/volume17_manifest.json",
+  "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100270332/volume17_manifest.json",
   "@type": "sc:Manifest",
   "metadata": [
     {
@@ -3635,7 +3635,7 @@
     }
   ],
   "within": {
-    "@id": "https://sseki27skt.github.io/gagakufu_iiif_manifest/100270332/manifest-index.json",
+    "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100270332/manifest-index.json",
     "@type": "sc:Collection",
     "label": "雅楽譜マニフェスト一覧"
   }

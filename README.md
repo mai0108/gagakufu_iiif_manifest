@@ -4,7 +4,7 @@
 
 ## 🌐 公開サイト
 
-**GitHub Pages**: https://sseki27skt.github.io/gagakufu_iiif_manifest/
+**GitHub Pages**: https://mai0108.github.io/gagakufu_iiif_manifest/
 
 ## 📚 コレクション
 
@@ -35,7 +35,7 @@
 
 ## 📖 使用方法
 
-1. **サイトにアクセス**: https://sseki27skt.github.io/gagakufu_iiif_manifest/
+1. **サイトにアクセス**: https://mai0108.github.io/gagakufu_iiif_manifest/
 2. **マニフェスト選択**: 左側のリストから閲覧したい巻を選択
 3. **画像閲覧**: Universal Viewerで雅楽譜の高解像度画像を閲覧
 
