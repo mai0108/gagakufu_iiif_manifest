@@ -335,6 +335,27 @@
     }
   }
 
+  // 曲登録・確認ページへのリンクを、contributors登録済みの人にだけ表示する
+  async function updateContributorLinks(user) {
+    const container = document.getElementById("contributorLinks");
+    if (!container) return;
+    container.innerHTML = "";
+    if (!user) return;
+
+    const { data: row } = await client
+      .from("contributors")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!row) return;
+
+    let links = '<a href="register-piece.html" class="btn-small" style="text-align:center; text-decoration:none;">🎼 曲を登録する</a>';
+    if (row.role === "admin") {
+      links += '<a href="review-submissions.html" class="btn-small" style="text-align:center; text-decoration:none;">🔍 曲登録の確認</a>';
+    }
+    container.innerHTML = links;
+  }
+
   // パスワード再設定リンクからの遷移時に、再設定フォームを表示する
   function showRecoverForm() {
     const loggedOut = document.getElementById("favLoggedOut");
@@ -393,6 +414,7 @@
         '    ログイン中: <span id="favUserEmail" style="font-weight:600; word-break:break-all;"></span>' +
         "  </div>" +
         '  <button class="btn-small" id="favLogoutBtn">ログアウト</button>' +
+        '  <div id="contributorLinks" style="margin-top:10px; display:flex; flex-direction:column; gap:6px;"></div>' +
         "</div>" +
         '<div id="favRecoverSection" style="display:none;">' +
         '  <div style="font-size:13px; color:#333; margin-bottom:8px;">新しいパスワードを設定してください</div>' +
@@ -616,6 +638,7 @@
       }
 
       updateAuthUi(user);
+      updateContributorLinks(user);
       if (user) {
         loadFavorites();
       } else {

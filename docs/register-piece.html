@@ -49,6 +49,8 @@
   .status.success { color: #16a34a; }
   a.back-link { font-size: 13px; color: #2563eb; }
   #gate { max-width: 360px; }
+  .required-mark { color: #dc2626; font-weight: 700; }
+  .optional-hint { color: #94a3b8; font-weight: 400; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -107,11 +109,11 @@
     <h2>3. 曲の情報を入力して登録</h2>
     <div class="row">
       <div>
-        <label>楽器</label>
-        <input type="text" id="instrumentInput" placeholder="例: 琵琶">
+        <label>楽器 <span class="required-mark">*</span></label>
+        <input type="text" id="instrumentInput" placeholder="例: 琵琶" required>
       </div>
       <div>
-        <label>調（分類がなければ空欄）</label>
+        <label>調（分類がなければ「なし」のまま）</label>
         <select id="modeSelect">
           <option value="">なし</option>
           <option>壱越調</option>
@@ -123,30 +125,31 @@
         </select>
       </div>
     </div>
-    <label>曲名</label>
-    <input type="text" id="pieceNameInput" placeholder="例: 石上流泉">
-    <label>撰定年</label>
+    <label>曲名 <span class="required-mark">*</span></label>
+    <input type="text" id="pieceNameInput" placeholder="例: 越殿楽" required>
+    <label>撰定年 <span class="optional-hint">（わかる場合は入力してください）</span></label>
     <input type="text" id="yearInput" list="yearSuggestions" placeholder="例: 明治9年撰定">
     <datalist id="yearSuggestions">
-      <option value="明治9年撰定">
-      <option value="明治21年撰定">
+      <option value="明治9年撰定"></option>
+      <option value="明治21年撰定"></option>
     </datalist>
     <div class="row">
       <div>
-        <label>開始ページ</label>
+        <label>開始ページ <span class="required-mark">*</span></label>
         <div class="field-btn">
-          <input type="number" id="startPageInput">
+          <input type="number" id="startPageInput" required>
           <button type="button" class="secondary" id="setStartBtn">現在のページ</button>
         </div>
       </div>
       <div>
-        <label>終了ページ</label>
+        <label>終了ページ <span class="required-mark">*</span></label>
         <div class="field-btn">
-          <input type="number" id="endPageInput">
+          <input type="number" id="endPageInput" required>
           <button type="button" class="secondary" id="setEndBtn">現在のページ</button>
         </div>
       </div>
     </div>
+    <p class="note" style="margin: -4px 0 12px;"><span class="required-mark">*</span> は入力必須の項目です</p>
     <button id="submitBtn" disabled>この曲を登録する</button>
     <div class="status" id="submitStatus"></div>
   </div>
