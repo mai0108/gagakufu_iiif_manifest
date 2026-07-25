@@ -1,9 +1,4 @@
 {
-  "@context": "http://iiif.io/api/presentation/2/context.json",
-  "@type": "sc:Collection",
-  "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100270332_pieces/pieces-index.json",
-  "label": "雅楽譜 楽曲別コレクション (宮内庁書陵部所蔵)",
-  "description": "楽曲別に分割されたIIIFマニフェスト集（321曲）",
   "pieces": [
     {
       "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100270332_pieces/笙_壱越調_調子_1016-1021.json",
@@ -4177,25 +4172,39 @@
         "filename": "龍笛_盤渉調_剣気褌脱_2295-2296.json",
         "collection": "宮内庁書陵部所蔵"
       }
+    },
+    {
+      "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100270332_pieces/琵琶_盤渉調_蘇合香_386-401.json",
+      "@type": "sc:Manifest",
+      "label": "蘇合香 (琵琶 - 盤渉調)",
+      "metadata": {
+        "instrument": "琵琶",
+        "mode": "盤渉調",
+        "piece_name": "蘇合香",
+        "page_range": "386-401",
+        "filename": "琵琶_盤渉調_蘇合香_386-401.json",
+        "collection": "宮内庁書陵部所蔵"
+      }
     }
   ],
   "statistics": {
-    "total_pieces": 321,
+    "total_pieces": 322,
     "instruments": [
-      "龍笛",
+      "琵琶",
+      "笙",
       "篳篥",
-      "笙"
+      "龍笛"
     ],
     "modes": [
-      "平調",
       "双調",
-      "太食調",
-      "黄鐘調",
       "壱越調",
-      "盤渉調"
+      "太食調",
+      "平調",
+      "盤渉調",
+      "黄鐘調"
     ],
     "collections": {
-      "宮内庁書陵部所蔵": 321
+      "宮内庁書陵部所蔵": 322
     }
   }
 }

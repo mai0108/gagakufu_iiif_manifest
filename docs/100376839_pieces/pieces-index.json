@@ -1,9 +1,4 @@
 {
-  "@context": "http://iiif.io/api/presentation/2/context.json",
-  "@type": "sc:Collection",
-  "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100376839_pieces/pieces-index.json",
-  "label": "雅楽譜 楽曲別コレクション（東京芸術大学所蔵）",
-  "description": "楽曲別に分割されたIIIFマニフェスト集（321曲）",
   "pieces": [
     {
       "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100376839_pieces/笙_双調_入破_109-110.json",
@@ -4177,25 +4172,39 @@
         "filename": "龍笛_黄鐘調_鳥急_732-732.json",
         "collection": "東京藝術大学所蔵"
       }
+    },
+    {
+      "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100376839_pieces/琵琶_壱越調_絃合_945-946.json",
+      "@type": "sc:Manifest",
+      "label": "絃合 (琵琶 - 壱越調)",
+      "metadata": {
+        "instrument": "琵琶",
+        "mode": "壱越調",
+        "piece_name": "絃合",
+        "page_range": "945-946",
+        "filename": "琵琶_壱越調_絃合_945-946.json",
+        "collection": "東京藝術大学所蔵"
+      }
     }
   ],
   "statistics": {
-    "total_pieces": 321,
+    "total_pieces": 322,
     "instruments": [
-      "龍笛",
+      "琵琶",
+      "笙",
       "篳篥",
-      "笙"
+      "龍笛"
     ],
     "modes": [
-      "平調",
       "双調",
-      "太食調",
-      "黄鐘調",
       "壱越調",
-      "盤渉調"
+      "太食調",
+      "平調",
+      "盤渉調",
+      "黄鐘調"
     ],
     "collections": {
-      "東京藝術大学所蔵": 321
+      "東京藝術大学所蔵": 322
     }
   }
 }

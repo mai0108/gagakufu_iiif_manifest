@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>曲登録の確認 - 雅楽譜閲覧支援サイト</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f1f5f9; color: #1e293b; margin: 0; padding: 20px;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .note { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+  .panel {
+    background: white; border-radius: 10px; padding: 16px 20px; max-width: 900px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; color: #334155; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+  input[type=email], input[type=password] {
+    width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: 14px; margin-bottom: 12px;
+  }
+  button {
+    background: #2563eb; color: white; border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { background: #1d4ed8; }
+  button.danger { background: #dc2626; }
+  button.danger:hover { background: #b91c1c; }
+  button.secondary { background: #64748b; }
+  button.secondary:hover { background: #475569; }
+  button:disabled { background: #cbd5e1; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  th { color: #64748b; font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .badge.pending { background: #fef3c7; color: #92400e; }
+  .badge.approved { background: #d1fae5; color: #065f46; }
+  .badge.rejected { background: #fee2e2; color: #991b1b; }
+  .badge.exported { background: #dbeafe; color: #1e3a8a; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .status { font-size: 13px; margin-top: 8px; }
+  .status.error { color: #dc2626; }
+  .status.success { color: #16a34a; }
+  a.back-link { font-size: 13px; color: #2563eb; }
+  #gate { max-width: 360px; }
+  .empty-hint { color: #94a3b8; font-size: 13px; padding: 10px 0; }
+</style>
+</head>
+<body>
+
+<p><a href="index.html" class="back-link">← 楽曲検索に戻る</a></p>
+<h1>🔍 曲登録の確認</h1>
+<p class="note">利用者から登録された曲を確認し、承認または却下します。</p>
+
+<div id="gate" class="panel">
+  <h2>ログイン</h2>
+  <label>メールアドレス</label>
+  <input type="email" id="email" autocomplete="email">
+  <label>パスワード</label>
+  <input type="password" id="password" autocomplete="current-password">
+  <button id="loginBtn">ログイン</button>
+  <div class="status" id="gateStatus"></div>
+</div>
+
+<div id="app" style="display:none;">
+  <div class="panel" id="noPermissionPanel" style="display:none;">
+    <h2>権限がありません</h2>
+    <p class="note">このアカウントには確認・承認の権限が設定されていません。</p>
+  </div>
+
+  <div class="panel" id="listPanel" style="display:none;">
+    <h2>承認待ち・処理済みの一覧</h2>
+    <div id="tableWrap"><div class="empty-hint">読み込み中...</div></div>
+    <div class="status" id="listStatus"></div>
+  </div>
+
+  <div class="panel" id="exportPanel" style="display:none;">
+    <h2>書き出し</h2>
+    <p class="note" style="margin-top:0;">
+      承認済み（まだ書き出していない）分をまとめてzipでダウンロードします。
+      ダウンロード後、内容をリポジトリに反映すると検索に反映されます。
+    </p>
+    <button id="exportBtn">承認済みをzipでダウンロード</button>
+    <div class="status" id="exportStatus"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://fenpzciyuwymcejsinul.supabase.co";
+const SUPABASE_KEY = "sb_publishable_VCkn0BtvJ1x4aThgurDYmQ_E0ybr4Lt";
+const IIIF_BASE = "https://mai0108.github.io/gagakufu_iiif_manifest";
+const LICENSE_URL = "https://kokusho.nijl.ac.jp/page/usage.html";
+
+const COLLECTIONS = {
+  "100270332": { collectionValue: "宮内庁書陵部所蔵", attribution: "宮内庁書陵部 国文学研究資料館" },
+  "100376839": { collectionValue: "東京藝術大学所蔵", attribution: "東京藝術大学附属図書館 国文学研究資料館" },
+};
+
+let client = null;
+let currentUser = null;
+let submissions = [];
+
+function $(id) { return document.getElementById(id); }
+
+function jpAuthError(err) {
+  const msg = (err && err.message) || "";
+  if (/Invalid login credentials/i.test(msg)) return "メールアドレスまたはパスワードが正しくありません。";
+  return "エラーが発生しました: " + msg;
+}
+
+async function init() {
+  client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  $("loginBtn").addEventListener("click", async () => {
+    const email = $("email").value.trim();
+    const password = $("password").value;
+    if (!email || !password) {
+      $("gateStatus").textContent = "メールアドレスとパスワードを入力してください。";
+      $("gateStatus").className = "status error";
+      return;
+    }
+    $("gateStatus").textContent = "ログイン中...";
+    $("gateStatus").className = "status";
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    if (error) {
+      $("gateStatus").textContent = jpAuthError(error);
+      $("gateStatus").className = "status error";
+    }
+  });
+
+  const { data } = await client.auth.getSession();
+  await handleSession(data.session);
+  client.auth.onAuthStateChange((_event, session) => handleSession(session));
+}
+
+async function handleSession(session) {
+  if (!session || !session.user) {
+    currentUser = null;
+    $("gate").style.display = "block";
+    $("app").style.display = "none";
+    return;
+  }
+  currentUser = session.user;
+
+  const { data: contributorRow } = await client
+    .from("contributors")
+    .select("role")
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+
+  $("gate").style.display = "none";
+  $("app").style.display = "block";
+
+  if (!contributorRow || contributorRow.role !== "admin") {
+    $("noPermissionPanel").style.display = "block";
+    return;
+  }
+
+  $("listPanel").style.display = "block";
+  $("exportPanel").style.display = "block";
+  await loadSubmissions();
+}
+
+async function loadSubmissions() {
+  const tableWrap = $("tableWrap");
+  const { data, error } = await client
+    .from("piece_submissions")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    tableWrap.innerHTML = `<div class="empty-hint">読み込みに失敗しました: ${error.message}</div>`;
+    return;
+  }
+
+  submissions = data || [];
+  renderTable();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text == null ? "" : String(text);
+  return div.innerHTML;
+}
+
+function renderTable() {
+  const tableWrap = $("tableWrap");
+  if (submissions.length === 0) {
+    tableWrap.innerHTML = '<div class="empty-hint">登録された曲はまだありません</div>';
+    return;
+  }
+
+  const rows = submissions.map((s) => {
+    const pageLink = `${s.volume_manifest_url}`;
+    const actions = s.status === "pending"
+      ? `<button data-action="approve" data-id="${s.id}">承認</button>
+         <button class="danger" data-action="reject" data-id="${s.id}">却下</button>`
+      : "";
+    return `
+      <tr>
+        <td>${escapeHtml(s.piece_name)}<br><span style="color:#94a3b8;font-size:11px;">${escapeHtml(s.volume_label || "")}</span></td>
+        <td>${escapeHtml(s.instrument)}</td>
+        <td>${escapeHtml(s.mode || "-")}</td>
+        <td>${escapeHtml(s.start_page)}-${escapeHtml(s.end_page)}<br>
+            <a href="${pageLink}" target="_blank" style="font-size:11px;">巻を開く</a></td>
+        <td><span class="badge ${s.status}">${s.status}</span></td>
+        <td class="actions">${actions}</td>
+      </tr>
+    `;
+  }).join("");
+
+  tableWrap.innerHTML = `
+    <table>
+      <thead><tr><th>曲名</th><th>楽器</th><th>調</th><th>ページ</th><th>状態</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  tableWrap.querySelectorAll("button[data-action]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      if (action === "approve") updateStatus(id, "approved");
+      else if (action === "reject") updateStatus(id, "rejected");
+    });
+  });
+}
+
+async function updateStatus(id, status) {
+  const listStatus = $("listStatus");
+  listStatus.textContent = "更新中...";
+  listStatus.className = "status";
+
+  const { error } = await client
+    .from("piece_submissions")
+    .update({ status: status, reviewed_by: currentUser.id, reviewed_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) {
+    listStatus.textContent = "更新に失敗しました: " + error.message;
+    listStatus.className = "status error";
+    return;
+  }
+
+  listStatus.textContent = status === "approved" ? "承認しました" : "却下しました";
+  listStatus.className = "status success";
+  await loadSubmissions();
+}
+
+function buildFilename(instrument, mode, pieceName, start, end) {
+  const parts = [instrument, mode, pieceName].filter(Boolean);
+  return `${parts.join("_")}_${start}-${end}.json`;
+}
+
+function buildLabel(instrument, mode, pieceName) {
+  return [instrument, mode, pieceName].filter(Boolean).join(" ");
+}
+
+async function buildManifestForSubmission(s) {
+  const res = await fetch(s.volume_manifest_url, { cache: "no-cache" });
+  if (!res.ok) throw new Error(`巻の取得に失敗しました (HTTP ${res.status})`);
+  const volume = await res.json();
+  const canvases = volume.sequences[0].canvases;
+  const startIdx = canvases.findIndex((c) => String(c.label) === String(s.start_page));
+  const endIdx = canvases.findIndex((c) => String(c.label) === String(s.end_page));
+  if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) {
+    throw new Error(`ページ範囲 ${s.start_page}-${s.end_page} が巻の中に見つかりません`);
+  }
+  const pieceCanvases = canvases.slice(startIdx, endIdx + 1);
+  const collectionInfo = COLLECTIONS[s.series_id];
+  const filename = buildFilename(s.instrument, s.mode, s.piece_name, s.start_page, s.end_page);
+  const label = buildLabel(s.instrument, s.mode, s.piece_name);
+
+  const metadata = [
+    { label: "Title", value: s.piece_name },
+    { label: "Instrument", value: s.instrument },
+  ];
+  if (s.mode) metadata.push({ label: "Cho-shi", value: s.mode });
+  if (s.compilation_year) metadata.push({ label: "Compilation Year", value: s.compilation_year });
+  metadata.push({ label: "Page Range", value: `${s.start_page}-${s.end_page}` });
+  metadata.push({ label: "DOI", value: `10.20730/${s.series_id}` });
+
+  const manifestJson = {
+    "@context": "http://iiif.io/api/presentation/2/context.json",
+    "@id": `${IIIF_BASE}/${s.series_id}_pieces/${filename}`,
+    "@type": "sc:Manifest",
+    label: label,
+    attribution: collectionInfo.attribution,
+    license: LICENSE_URL,
+    viewingDirection: "right-to-left",
+    metadata: metadata,
+    sequences: [{ "@type": "sc:Sequence", canvases: pieceCanvases }],
+  };
+
+  const indexEntry = {
+    "@id": `${IIIF_BASE}/${s.series_id}_pieces/${filename}`,
+    "@type": "sc:Manifest",
+    label: `${s.piece_name} (${s.instrument}${s.mode ? " - " + s.mode : ""})`,
+    metadata: {
+      instrument: s.instrument,
+      mode: s.mode || "",
+      piece_name: s.piece_name,
+      page_range: `${s.start_page}-${s.end_page}`,
+      filename: filename,
+      collection: collectionInfo.collectionValue,
+    },
+  };
+
+  return { filename, manifestJson, indexEntry };
+}
+
+async function buildUpdatedPiecesIndex(seriesId, newEntries) {
+  const res = await fetch(`${IIIF_BASE}/${seriesId}_pieces/pieces-index.json`, { cache: "no-cache" });
+  if (!res.ok) throw new Error(`既存pieces-index.jsonの取得に失敗しました (HTTP ${res.status})`);
+  const current = await res.json();
+  const allPieces = current.pieces.concat(newEntries);
+
+  const instruments = new Set();
+  const modes = new Set();
+  const collections = {};
+  allPieces.forEach((p) => {
+    if (p.metadata.instrument) instruments.add(p.metadata.instrument);
+    if (p.metadata.mode) modes.add(p.metadata.mode);
+    if (p.metadata.collection) collections[p.metadata.collection] = (collections[p.metadata.collection] || 0) + 1;
+  });
+
+  return {
+    pieces: allPieces,
+    statistics: {
+      total_pieces: allPieces.length,
+      instruments: Array.from(instruments).sort(),
+      modes: Array.from(modes).sort(),
+      collections: collections,
+    },
+  };
+}
+
+$("exportBtn").addEventListener("click", async () => {
+  const exportStatus = $("exportStatus");
+  exportStatus.textContent = "書き出し中...";
+  exportStatus.className = "status";
+
+  const approved = submissions.filter((s) => s.status === "approved");
+  if (approved.length === 0) {
+    exportStatus.textContent = "承認済み（未書き出し）の登録はありません";
+    exportStatus.className = "status error";
+    return;
+  }
+
+  try {
+    const zip = new JSZip();
+    const bySeries = {};
+    approved.forEach((s) => {
+      (bySeries[s.series_id] = bySeries[s.series_id] || []).push(s);
+    });
+
+    for (const [seriesId, items] of Object.entries(bySeries)) {
+      const folder = zip.folder(`${seriesId}_pieces`);
+      const newEntries = [];
+      for (const s of items) {
+        const { filename, manifestJson, indexEntry } = await buildManifestForSubmission(s);
+        folder.file(filename, JSON.stringify(manifestJson, null, 2));
+        newEntries.push(indexEntry);
+      }
+      const updatedIndex = await buildUpdatedPiecesIndex(seriesId, newEntries);
+      folder.file("pieces-index.json", JSON.stringify(updatedIndex, null, 2));
+    }
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "approved-pieces-export.zip";
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // 書き出し済みとしてマークする
+    const ids = approved.map((s) => s.id);
+    await client.from("piece_submissions").update({ status: "exported" }).in("id", ids);
+    await loadSubmissions();
+
+    exportStatus.textContent = `${approved.length}件をダウンロードしました`;
+    exportStatus.className = "status success";
+  } catch (err) {
+    exportStatus.textContent = "書き出しに失敗しました: " + err.message;
+    exportStatus.className = "status error";
+  }
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  if (window.supabase) init();
+  else window.addEventListener("load", init);
+});
+</script>
+</body>
+</html>

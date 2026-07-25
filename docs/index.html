@@ -1393,9 +1393,13 @@
 
           // アクティブなビューアーでマニフェストをロード
           if (activeViewerType === "uv") {
+            // Universal Viewerは外部サイト上で動くため、ローカルのファイルには
+            // アクセスできない。常に公開URLを渡す必要がある。
             await loadUniversalViewer(originalManifestUrl);
           } else if (activeViewerType === "mirador") {
-            await loadMiradorViewer(originalManifestUrl);
+            // Miradorは自サイト内に組み込まれ同一オリジンで動くため、
+            // ローカル環境では未公開のファイルもfetchUrl経由でそのまま読める。
+            await loadMiradorViewer(fetchUrl);
           }
           showStatus("ビューアーの更新が完了しました", "success");
         } catch (error) {

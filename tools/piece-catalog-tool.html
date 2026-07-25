@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>曲カタログ作成ツール（内部用）</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f1f5f9;
+    color: #1e293b;
+    margin: 0;
+    padding: 20px;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .note { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+  .layout { display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .panel {
+    background: white; border-radius: 10px; padding: 16px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; color: #334155; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+  select, input[type=text], input[type=number] {
+    width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: 14px; margin-bottom: 12px;
+  }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  button {
+    background: #2563eb; color: white; border: none; border-radius: 6px;
+    padding: 9px 16px; font-size: 14px; cursor: pointer;
+  }
+  button:hover { background: #1d4ed8; }
+  button.secondary { background: #64748b; }
+  button.secondary:hover { background: #475569; }
+  button.danger { background: #dc2626; padding: 4px 10px; font-size: 12px; }
+  button.danger:hover { background: #b91c1c; }
+  button:disabled { background: #cbd5e1; cursor: not-allowed; }
+  .viewer-img-wrap {
+    background: #0f172a; border-radius: 8px; padding: 10px; text-align: center;
+    margin-bottom: 10px; min-height: 300px; display: flex; align-items: center; justify-content: center;
+  }
+  .viewer-img-wrap img { max-width: 100%; max-height: 70vh; cursor: zoom-in; }
+  .viewer-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .viewer-controls input[type=number] { width: 90px; margin-bottom: 0; }
+  .page-label { font-size: 14px; font-weight: 600; color: #334155; min-width: 140px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+  th { color: #64748b; font-weight: 600; }
+  .empty-hint { color: #94a3b8; font-size: 13px; padding: 10px 0; }
+  .status { font-size: 13px; margin-top: 8px; }
+  .status.error { color: #dc2626; }
+  .status.success { color: #16a34a; }
+  .field-btn { display: flex; gap: 6px; }
+  .field-btn input { flex: 1; }
+  .field-btn button { white-space: nowrap; padding: 8px 10px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>🎼 曲カタログ作成ツール（内部用）</h1>
+<p class="note">
+  各巻のページ画像を見ながら曲の区切り・曲名・調を記録し、公開サイトの検索データ（pieces-index.json）に
+  追加するためのJSONを生成します。このツールは配布サイト（docs/）には含めておらず、手元での作業専用です。
+</p>
+
+<div class="layout">
+  <div>
+    <div class="panel">
+      <h2>1. 巻を選ぶ</h2>
+      <div class="row">
+        <div>
+          <label>所蔵</label>
+          <select id="collectionSelect"></select>
+        </div>
+        <div>
+          <label>巻</label>
+          <select id="volumeSelect"><option>先に所蔵を選んでください</option></select>
+        </div>
+      </div>
+      <div class="status" id="volumeStatus"></div>
+    </div>
+
+    <div class="panel">
+      <h2>2. ページを見る</h2>
+      <div class="viewer-img-wrap" id="imgWrap">
+        <span style="color:#94a3b8;">巻を選択するとページが表示されます</span>
+      </div>
+      <div class="viewer-controls">
+        <button id="prevBtn" disabled>◀ 前のページ</button>
+        <span class="page-label" id="pageLabel">-</span>
+        <button id="nextBtn" disabled>次のページ ▶</button>
+        <span style="flex:1"></span>
+        <label style="margin:0; display:flex; align-items:center; gap:6px; font-weight:normal;">
+          ページ番号へ移動
+          <input type="number" id="jumpInput" disabled>
+        </label>
+        <button id="jumpBtn" class="secondary" disabled>移動</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>3. 曲の情報を入力</h2>
+      <div class="row">
+        <div>
+          <label>楽器</label>
+          <input type="text" id="instrumentInput" placeholder="例: 琵琶">
+        </div>
+        <div>
+          <label>調（分類がなければ空欄）</label>
+          <select id="modeSelect">
+            <option value="">なし</option>
+            <option>壱越調</option>
+            <option>平調</option>
+            <option>双調</option>
+            <option>黄鐘調</option>
+            <option>盤渉調</option>
+            <option>太食調</option>
+          </select>
+        </div>
+      </div>
+      <label>曲名</label>
+      <input type="text" id="pieceNameInput" placeholder="例: 石上流泉">
+      <label>撰定年</label>
+      <input type="text" id="yearInput" list="yearSuggestions" placeholder="例: 明治9年撰定">
+      <datalist id="yearSuggestions">
+        <option value="明治9年撰定">
+        <option value="明治21年撰定">
+      </datalist>
+      <div class="row">
+        <div>
+          <label>開始ページ</label>
+          <div class="field-btn">
+            <input type="number" id="startPageInput">
+            <button type="button" class="secondary" id="setStartBtn">現在のページ</button>
+          </div>
+        </div>
+        <div>
+          <label>終了ページ</label>
+          <div class="field-btn">
+            <input type="number" id="endPageInput">
+            <button type="button" class="secondary" id="setEndBtn">現在のページ</button>
+          </div>
+        </div>
+      </div>
+      <button id="addPieceBtn" disabled>この曲を追加</button>
+      <div class="status" id="addStatus"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>カタログ済み一覧（<span id="catalogCount">0</span>件）</h2>
+      <div id="catalogTableWrap">
+        <div class="empty-hint">まだ何も追加されていません</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>4. 書き出し</h2>
+      <p class="note" style="margin-top:0;">
+        カタログ済みの内容を、所蔵ごとにまとめてダウンロードします。
+        ダウンロード後、zip内のJSONファイルを対応する <code>docs/&lt;ID&gt;_pieces/</code> フォルダに置き、
+        <code>pieces-index.json</code> を同梱の更新版で置き換えてください。
+      </p>
+      <button id="exportBtn" disabled>zipをダウンロード</button>
+      <div class="status" id="exportStatus"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const IIIF_BASE = "https://mai0108.github.io/gagakufu_iiif_manifest";
+const LICENSE_URL = "https://kokusho.nijl.ac.jp/page/usage.html";
+
+const COLLECTIONS = {
+  "100270332": {
+    name: "宮内庁書陵部所蔵版",
+    collectionValue: "宮内庁書陵部所蔵",
+    attribution: "宮内庁書陵部 国文学研究資料館",
+  },
+  "100376839": {
+    name: "東京藝術大学所蔵版",
+    collectionValue: "東京藝術大学所蔵",
+    attribution: "東京藝術大学附属図書館 国文学研究資料館",
+  },
+};
+
+// 巻ラベルから楽器の初期値を推測する（外れていれば入力欄で編集すればよい）
+const INSTRUMENT_GUESS_RULES = [
+  [/鳳笙/, "笙"],
+  [/篳篥/, "篳篥"],
+  [/笛/, "龍笛"],
+  [/琵琶/, "琵琶"],
+  [/筝/, "筝"],
+  [/和琴/, "和琴"],
+  [/鞨皷|太皷|鉦皷|皷/, "鼓"],
+];
+
+function guessInstrument(volumeLabel) {
+  for (const [pattern, name] of INSTRUMENT_GUESS_RULES) {
+    if (pattern.test(volumeLabel)) return name;
+  }
+  return "";
+}
+
+let currentSeriesId = null;
+let currentVolume = null; // { canvases: [...] }
+let pageIndex = 0;
+// { [seriesId]: [{ filename, manifestJson, indexEntry }] }
+const cataloged = {};
+
+const collectionSelect = document.getElementById("collectionSelect");
+const volumeSelect = document.getElementById("volumeSelect");
+const volumeStatus = document.getElementById("volumeStatus");
+const imgWrap = document.getElementById("imgWrap");
+const pageLabel = document.getElementById("pageLabel");
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const jumpInput = document.getElementById("jumpInput");
+const jumpBtn = document.getElementById("jumpBtn");
+const instrumentInput = document.getElementById("instrumentInput");
+const modeSelect = document.getElementById("modeSelect");
+const pieceNameInput = document.getElementById("pieceNameInput");
+const yearInput = document.getElementById("yearInput");
+const startPageInput = document.getElementById("startPageInput");
+const endPageInput = document.getElementById("endPageInput");
+const setStartBtn = document.getElementById("setStartBtn");
+const setEndBtn = document.getElementById("setEndBtn");
+const addPieceBtn = document.getElementById("addPieceBtn");
+const addStatus = document.getElementById("addStatus");
+const catalogTableWrap = document.getElementById("catalogTableWrap");
+const catalogCount = document.getElementById("catalogCount");
+const exportBtn = document.getElementById("exportBtn");
+const exportStatus = document.getElementById("exportStatus");
+
+function initCollectionSelect() {
+  Object.entries(COLLECTIONS).forEach(([id, info]) => {
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = `${info.name}（${id}）`;
+    collectionSelect.appendChild(opt);
+  });
+}
+
+async function loadVolumeList(seriesId) {
+  volumeSelect.innerHTML = "<option>読み込み中...</option>";
+  volumeStatus.textContent = "";
+  try {
+    const res = await fetch(`${IIIF_BASE}/${seriesId}/manifest-index.json`, { cache: "no-cache" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    volumeSelect.innerHTML = "";
+    data.manifests.forEach((m) => {
+      const opt = document.createElement("option");
+      opt.value = m["@id"];
+      opt.textContent = m.label;
+      volumeSelect.appendChild(opt);
+    });
+    volumeSelect.disabled = false;
+    await loadVolume(volumeSelect.value);
+  } catch (err) {
+    volumeStatus.textContent = "巻一覧の読み込みに失敗しました: " + err.message;
+    volumeStatus.className = "status error";
+  }
+}
+
+async function loadVolume(manifestUrl) {
+  volumeStatus.textContent = "読み込み中...";
+  volumeStatus.className = "status";
+  try {
+    const res = await fetch(manifestUrl, { cache: "no-cache" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const manifest = await res.json();
+    currentVolume = manifest;
+    pageIndex = 0;
+
+    const selectedLabel = volumeSelect.options[volumeSelect.selectedIndex].textContent;
+    const guessed = guessInstrument(selectedLabel);
+    if (guessed) instrumentInput.value = guessed;
+
+    prevBtn.disabled = false;
+    nextBtn.disabled = false;
+    jumpInput.disabled = false;
+    jumpBtn.disabled = false;
+    addPieceBtn.disabled = false;
+
+    renderPage();
+    volumeStatus.textContent = `${manifest.sequences[0].canvases.length} ページを読み込みました`;
+    volumeStatus.className = "status success";
+  } catch (err) {
+    volumeStatus.textContent = "巻の読み込みに失敗しました: " + err.message;
+    volumeStatus.className = "status error";
+  }
+}
+
+function getCanvases() {
+  return (currentVolume && currentVolume.sequences[0].canvases) || [];
+}
+
+function renderPage() {
+  const canvases = getCanvases();
+  if (canvases.length === 0) return;
+  const canvas = canvases[pageIndex];
+  const service = canvas.images[0].resource.service["@id"];
+  const displayUrl = `${service}/full/,1200/0/default.jpg`;
+  const fullUrl = canvas.images[0].resource["@id"];
+
+  imgWrap.innerHTML = `<img src="${displayUrl}" alt="ページ ${canvas.label}" onclick="window.open('${fullUrl}', '_blank')">`;
+  pageLabel.textContent = `ページ ${canvas.label}（${pageIndex + 1} / ${canvases.length}）`;
+  jumpInput.value = canvas.label;
+}
+
+function findIndexByLabel(label) {
+  const canvases = getCanvases();
+  return canvases.findIndex((c) => String(c.label) === String(label));
+}
+
+prevBtn.addEventListener("click", () => {
+  if (pageIndex > 0) { pageIndex--; renderPage(); }
+});
+nextBtn.addEventListener("click", () => {
+  if (pageIndex < getCanvases().length - 1) { pageIndex++; renderPage(); }
+});
+jumpBtn.addEventListener("click", () => {
+  const idx = findIndexByLabel(jumpInput.value.trim());
+  if (idx === -1) {
+    volumeStatus.textContent = `ページ ${jumpInput.value} は見つかりませんでした`;
+    volumeStatus.className = "status error";
+    return;
+  }
+  pageIndex = idx;
+  renderPage();
+});
+setStartBtn.addEventListener("click", () => {
+  startPageInput.value = getCanvases()[pageIndex].label;
+});
+setEndBtn.addEventListener("click", () => {
+  endPageInput.value = getCanvases()[pageIndex].label;
+});
+
+collectionSelect.addEventListener("change", () => {
+  currentSeriesId = collectionSelect.value;
+  loadVolumeList(currentSeriesId);
+});
+volumeSelect.addEventListener("change", () => {
+  loadVolume(volumeSelect.value);
+});
+
+function buildFilename(instrument, mode, pieceName, start, end) {
+  const parts = [instrument, mode, pieceName].filter(Boolean);
+  return `${parts.join("_")}_${start}-${end}.json`;
+}
+
+function buildLabel(instrument, mode, pieceName) {
+  return [instrument, mode, pieceName].filter(Boolean).join(" ");
+}
+
+addPieceBtn.addEventListener("click", () => {
+  addStatus.textContent = "";
+  addStatus.className = "status";
+
+  const instrument = instrumentInput.value.trim();
+  const mode = modeSelect.value;
+  const pieceName = pieceNameInput.value.trim();
+  const year = yearInput.value.trim();
+  const start = startPageInput.value.trim();
+  const end = endPageInput.value.trim();
+
+  if (!instrument || !pieceName || !start || !end) {
+    addStatus.textContent = "楽器・曲名・開始ページ・終了ページは必須です";
+    addStatus.className = "status error";
+    return;
+  }
+  if (parseInt(start, 10) > parseInt(end, 10)) {
+    addStatus.textContent = "開始ページが終了ページより後になっています";
+    addStatus.className = "status error";
+    return;
+  }
+
+  const startIdx = findIndexByLabel(start);
+  const endIdx = findIndexByLabel(end);
+  if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) {
+    addStatus.textContent = "指定したページ範囲がこの巻の中に見つかりません";
+    addStatus.className = "status error";
+    return;
+  }
+
+  const pieceCanvases = getCanvases().slice(startIdx, endIdx + 1);
+  const seriesId = currentSeriesId;
+  const collectionInfo = COLLECTIONS[seriesId];
+  const filename = buildFilename(instrument, mode, pieceName, start, end);
+  const label = buildLabel(instrument, mode, pieceName);
+
+  const metadata = [
+    { label: "Title", value: pieceName },
+    { label: "Instrument", value: instrument },
+  ];
+  if (mode) metadata.push({ label: "Cho-shi", value: mode });
+  if (year) metadata.push({ label: "Compilation Year", value: year });
+  metadata.push({ label: "Page Range", value: `${start}-${end}` });
+  metadata.push({ label: "DOI", value: `10.20730/${seriesId}` });
+
+  const manifestJson = {
+    "@context": "http://iiif.io/api/presentation/2/context.json",
+    "@id": `${IIIF_BASE}/${seriesId}_pieces/${filename}`,
+    "@type": "sc:Manifest",
+    label: label,
+    attribution: collectionInfo.attribution,
+    license: LICENSE_URL,
+    viewingDirection: "right-to-left",
+    metadata: metadata,
+    sequences: [{ "@type": "sc:Sequence", canvases: pieceCanvases }],
+  };
+
+  const indexEntry = {
+    "@id": `${IIIF_BASE}/${seriesId}_pieces/${filename}`,
+    "@type": "sc:Manifest",
+    label: `${pieceName} (${instrument}${mode ? " - " + mode : ""})`,
+    metadata: {
+      instrument: instrument,
+      mode: mode || "",
+      piece_name: pieceName,
+      page_range: `${start}-${end}`,
+      filename: filename,
+      collection: collectionInfo.collectionValue,
+    },
+  };
+
+  if (!cataloged[seriesId]) cataloged[seriesId] = [];
+  cataloged[seriesId].push({ filename, manifestJson, indexEntry });
+
+  // 次の曲入力のために、変わりにくい項目だけ残してクリアする
+  pieceNameInput.value = "";
+  modeSelect.value = "";
+  startPageInput.value = "";
+  endPageInput.value = "";
+
+  addStatus.textContent = `追加しました: ${label}`;
+  addStatus.className = "status success";
+  renderCatalogTable();
+});
+
+function renderCatalogTable() {
+  const rows = [];
+  Object.entries(cataloged).forEach(([seriesId, items]) => {
+    items.forEach((item, idx) => {
+      rows.push({ seriesId, idx, item });
+    });
+  });
+
+  catalogCount.textContent = rows.length;
+  exportBtn.disabled = rows.length === 0;
+
+  if (rows.length === 0) {
+    catalogTableWrap.innerHTML = '<div class="empty-hint">まだ何も追加されていません</div>';
+    return;
+  }
+
+  const tableRows = rows.map(({ seriesId, idx, item }) => `
+    <tr>
+      <td>${item.indexEntry.metadata.piece_name}</td>
+      <td>${item.indexEntry.metadata.instrument}</td>
+      <td>${item.indexEntry.metadata.mode || "-"}</td>
+      <td>${item.indexEntry.metadata.page_range}</td>
+      <td><button class="danger" data-series="${seriesId}" data-idx="${idx}">削除</button></td>
+    </tr>
+  `).join("");
+
+  catalogTableWrap.innerHTML = `
+    <table>
+      <thead><tr><th>曲名</th><th>楽器</th><th>調</th><th>ページ</th><th></th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  `;
+
+  catalogTableWrap.querySelectorAll(".danger").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const seriesId = btn.dataset.series;
+      const idx = parseInt(btn.dataset.idx, 10);
+      cataloged[seriesId].splice(idx, 1);
+      renderCatalogTable();
+    });
+  });
+}
+
+async function buildUpdatedPiecesIndex(seriesId, newEntries) {
+  const res = await fetch(`${IIIF_BASE}/${seriesId}_pieces/pieces-index.json`, { cache: "no-cache" });
+  if (!res.ok) throw new Error(`既存pieces-index.jsonの取得に失敗しました (HTTP ${res.status})`);
+  const current = await res.json();
+
+  const allPieces = current.pieces.concat(newEntries);
+
+  const instruments = new Set();
+  const modes = new Set();
+  const collections = {};
+  allPieces.forEach((p) => {
+    if (p.metadata.instrument) instruments.add(p.metadata.instrument);
+    if (p.metadata.mode) modes.add(p.metadata.mode);
+    if (p.metadata.collection) {
+      collections[p.metadata.collection] = (collections[p.metadata.collection] || 0) + 1;
+    }
+  });
+
+  return {
+    pieces: allPieces,
+    statistics: {
+      total_pieces: allPieces.length,
+      instruments: Array.from(instruments).sort(),
+      modes: Array.from(modes).sort(),
+      collections: collections,
+    },
+  };
+}
+
+exportBtn.addEventListener("click", async () => {
+  exportStatus.textContent = "書き出し中...";
+  exportStatus.className = "status";
+  try {
+    const zip = new JSZip();
+
+    for (const [seriesId, items] of Object.entries(cataloged)) {
+      if (items.length === 0) continue;
+      const folder = zip.folder(`${seriesId}_pieces`);
+      items.forEach((item) => {
+        folder.file(item.filename, JSON.stringify(item.manifestJson, null, 2));
+      });
+
+      const newEntries = items.map((item) => item.indexEntry);
+      const updatedIndex = await buildUpdatedPiecesIndex(seriesId, newEntries);
+      folder.file("pieces-index.json", JSON.stringify(updatedIndex, null, 2));
+    }
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "catalog-export.zip";
+    a.click();
+    URL.revokeObjectURL(url);
+
+    exportStatus.textContent = "ダウンロードしました";
+    exportStatus.className = "status success";
+  } catch (err) {
+    exportStatus.textContent = "書き出しに失敗しました: " + err.message;
+    exportStatus.className = "status error";
+  }
+});
+
+initCollectionSelect();
+currentSeriesId = collectionSelect.value;
+loadVolumeList(currentSeriesId);
+</script>
+</body>
+</html>
