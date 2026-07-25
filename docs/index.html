@@ -784,7 +784,7 @@
         align-items: center;
         gap: 6px;
         position: fixed;
-        bottom: calc(20px + env(safe-area-inset-bottom));
+        bottom: calc(70px + env(safe-area-inset-bottom));
         left: 16px;
         z-index: 2500;
         background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
@@ -1077,11 +1077,14 @@
     <script>
       // グローバル変数
       let currentManifestUrl = null;
+      // 現在ビューアーで表示中のページ（キャンバス）インデックス。
+      // お気に入り登録時に「今見ているページ」を記録するために追跡する。
+      let currentCanvasIndex = 0;
       let manifestCache = new Map();
 
-      // Universal Viewer の設定
-      const UV_BASE_URL = "https://universalviewer.io/examples/uv/uv.html";
-      // const MIRADOR_BASE_URL = 'https://projectmirador.org/embed/'; // MiradorのURLを追加
+      // Universal Viewer / Mirador はどちらも自前ホスト（同一オリジン）で動かす。
+      // これにより内部のページ送り状態を postMessage で受け取れるようになる。
+      const UV_BASE_URL = "uv_viewer/index.html";
       const MIRADOR_BASE_URL = "mirador_viewer/index.html";
 
       // GitHub PagesのベースURL（これが各マニフェストの正規のURL）
@@ -1099,14 +1102,11 @@
 
       // 全画面表示サポート関数
       function enableFullscreenSupport() {
-        // PostMessage APIでiframe内からの全画面要求を監視
+        // PostMessage APIでiframe内からの全画面要求・ページ送りを監視
         window.addEventListener("message", function (event) {
-          // セキュリティのため、Universal Viewerからのメッセージのみ処理
-          if (
-            event.origin !== "https://universalviewer.io" &&
-            event.origin !== "https://projectmirador.org"
-          ) {
-            // Miradorも追加
+          // Universal Viewer / Mirador とも自前ホスト（同一オリジン）なので、
+          // 自分自身のオリジン以外からのメッセージは無視する
+          if (event.origin !== window.location.origin) {
             return;
           }
 
@@ -1119,6 +1119,18 @@
           // 全画面終了要求の処理
           if (event.data && event.data.type === "exitFullscreen") {
             exitFullscreen();
+          }
+
+          // Universal Viewerでページ（キャンバス）が変わった
+          if (event.data && event.data.type === "uvCanvasIndexChange") {
+            currentCanvasIndex = event.data.canvasIndex || 0;
+          }
+
+          // Miradorでページ（キャンバス）が変わった
+          // Miradorはキャンバスをidで通知するため、現在のマニフェストと突き合わせて
+          // インデックスに変換する
+          if (event.data && event.data.type === "miradorCanvasIdChange") {
+            currentCanvasIndex = getCanvasIndexFromId(event.data.canvasId);
           }
         });
 
@@ -1201,6 +1213,15 @@
         }
       }
 
+      // MiradorはキャンバスをID（"@id"）で通知してくるため、
+      // 現在キャッシュ済みのマニフェストと突き合わせてインデックスに変換する
+      function getCanvasIndexFromId(canvasId) {
+        const manifest = manifestCache.get(currentManifestUrl);
+        const canvases = manifest?.sequences?.[0]?.canvases || [];
+        const idx = canvases.findIndex((c) => c["@id"] === canvasId);
+        return idx >= 0 ? idx : 0;
+      }
+
       // マニフェスト情報を更新
       function updateManifestInfo(url, manifest) {
         document.getElementById("currentUrl").textContent = url;
@@ -1246,6 +1267,8 @@
         btn.dataset.mode = "";
         btn.dataset.collection = collection;
         btn.dataset.page = "";
+        // 今表示しているページをお気に入りに記録できるようにする
+        btn.dataset.canvasIndex = String(currentCanvasIndex || 0);
         btn.style.display = "inline-block";
 
         const active = GFav.isFavorite(key);
@@ -1280,6 +1303,8 @@
       async function toggleCurrentManifestFavorite() {
         const btn = document.getElementById("currentManifestFavBtn");
         if (!btn || !window.GFav || !GFav.toggleButton) return;
+        // クリック時点の最新ページ番号を反映してから登録する
+        btn.dataset.canvasIndex = String(currentCanvasIndex || 0);
         await GFav.toggleButton(btn);
         const title = document.getElementById("currentTitle").textContent;
         updateCurrentManifestFavButton(currentManifestUrl, title);
@@ -1406,14 +1431,14 @@
       }
 
       // Universal Viewerを読み込む関数
-      async function loadUniversalViewer(manifestUrlForUV) {
+      async function loadUniversalViewer(manifestUrlForUV, canvasIndex = 0) {
         // 前の譜面でビューアーが内部に積んだ履歴ごと破棄するため作り直す
         const iframe = recreateViewerIframe();
 
         try {
-          const uvUrl = `${UV_BASE_URL}#?manifest=${encodeURIComponent(
+          const uvUrl = `${UV_BASE_URL}?manifest=${encodeURIComponent(
             manifestUrlForUV
-          )}&c=0&m=0&s=0&cv=0&z=0&r=0`;
+          )}&canvasIndex=${canvasIndex}`;
 
           console.log("Universal Viewer URL:", uvUrl);
 
@@ -1443,7 +1468,7 @@
       }
 
       // Miradorを読み込む関数
-      async function loadMiradorViewer(manifestUrlForUV) {
+      async function loadMiradorViewer(manifestUrlForUV, canvasIndex = 0) {
         // 前の譜面でビューアーが内部に積んだ履歴ごと破棄するため作り直す
         const iframe = recreateViewerIframe();
 
@@ -1451,7 +1476,7 @@
           // Miradorのembedパラメータで連続ロール（scroll）ビューを指定
           const miradorUrl = `${MIRADOR_BASE_URL}?manifest=${encodeURIComponent(
             manifestUrlForUV
-          )}&canvasIndex=0&view=scroll`;
+          )}&canvasIndex=${canvasIndex}&view=scroll`;
 
           console.log("Mirador Viewer URL (continuous scroll):", miradorUrl);
 
@@ -1481,7 +1506,10 @@
       }
 
       // マニフェストを読み込んでビューアーで表示
-      async function loadManifest(originalManifestUrl) {
+      async function loadManifest(originalManifestUrl, canvasIndex = 0) {
+        // これから表示するページ番号を先に反映しておく
+        // （実際のビューアーからの通知が届くまでの間の暫定値としても使う）
+        currentCanvasIndex = canvasIndex || 0;
         // モバイルではメニューを閉じて譜面を見せる
         if (window.matchMedia("(max-width: 900px)").matches) {
           toggleSidebar(false);
@@ -1547,14 +1575,12 @@
           updateActiveManifest(originalManifestUrl);
 
           // アクティブなビューアーでマニフェストをロード
+          // UV・Miradorとも自サイト内に組み込まれ同一オリジンで動くため、
+          // ローカル環境では未公開のファイルもfetchUrl経由でそのまま読める。
           if (activeViewerType === "uv") {
-            // Universal Viewerは外部サイト上で動くため、ローカルのファイルには
-            // アクセスできない。常に公開URLを渡す必要がある。
-            await loadUniversalViewer(originalManifestUrl);
+            await loadUniversalViewer(fetchUrl, canvasIndex);
           } else if (activeViewerType === "mirador") {
-            // Miradorは自サイト内に組み込まれ同一オリジンで動くため、
-            // ローカル環境では未公開のファイルもfetchUrl経由でそのまま読める。
-            await loadMiradorViewer(fetchUrl);
+            await loadMiradorViewer(fetchUrl, canvasIndex);
           }
           showStatus("ビューアーの更新が完了しました", "success");
         } catch (error) {
@@ -2671,7 +2697,7 @@
               return `
                     <div class="piece-item" onclick="loadManifest('${
                       piece["@id"]
-                    }')">
+                    }', ${meta.canvas_index || 0})">
                         ${
                           window.GFav ? window.GFav.starButtonHtml(piece) : ""
                         }
@@ -2760,7 +2786,7 @@
         const viewerSelect = document.getElementById("viewerSelect");
         activeViewerType = viewerSelect.value;
         if (currentManifestUrl) {
-          loadManifest(currentManifestUrl);
+          loadManifest(currentManifestUrl, currentCanvasIndex);
         }
       }
 
@@ -2781,7 +2807,7 @@
 
               // マニフェストが既に読み込まれている場合は、新しいビューアーで再読み込み
               if (currentManifestUrl) {
-                loadManifest(currentManifestUrl);
+                loadManifest(currentManifestUrl, currentCanvasIndex);
               }
             }
           });

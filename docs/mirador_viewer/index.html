@@ -37,7 +37,7 @@
         let currentManifestId = null;
         let miradorInstance = null;
 
-        function initializeMirador(manifestId) {
+        function initializeMirador(manifestId, canvasIndex) {
             if (!manifestId) {
                 console.warn('Manifest ID is empty. Mirador will not be initialized.');
                 return;
@@ -73,7 +73,7 @@
                 windows: [
                     {
                         manifestId: manifestId,
-                        canvasIndex: 0,
+                        canvasIndex: canvasIndex || 0,
                         thumbnailNavigationPosition: 'off'
                     }
                 ],
@@ -108,6 +108,20 @@
 
             miradorInstance = Mirador.viewer(config);
 
+            // 表示中のページ（キャンバス）が変わるたびに親ページへ通知する。
+            // お気に入り登録時に「今見ているページ」を保存できるようにするため。
+            let lastCanvasId = null;
+            miradorInstance.store.subscribe(() => {
+                const state = miradorInstance.store.getState();
+                const windowIds = Object.keys(state.windows || {});
+                if (!windowIds.length) return;
+                const canvasId = state.windows[windowIds[0]].canvasId;
+                if (canvasId && canvasId !== lastCanvasId) {
+                    lastCanvasId = canvasId;
+                    window.parent.postMessage({ type: 'miradorCanvasIdChange', canvasId }, '*');
+                }
+            });
+
             // OpenSeadragonは初期表示では粗い解像度のタイルを表示し、
             // ズーム操作をきっかけに鮮明なタイルへ描き直す仕様のため、
             // 読み込み直後にごく僅かなズームイン/アウトを自動で発生させ、
@@ -140,8 +154,7 @@
             // if (event.origin !== "https://your-main-app-domain.github.io") return;
 
             if (event.data && event.data.type === 'loadManifest') {
-                const manifestId = event.data.manifestUrl;
-                initializeMirador(manifestId);
+                initializeMirador(event.data.manifestUrl, event.data.canvasIndex);
             }
         });
 
@@ -149,7 +162,8 @@
         const urlParams = new URLSearchParams(window.location.search);
         const initialManifest = urlParams.get('manifest');
         if (initialManifest) {
-            initializeMirador(initialManifest);
+            const initialCanvasIndex = parseInt(urlParams.get('canvasIndex'), 10) || 0;
+            initializeMirador(initialManifest, initialCanvasIndex);
         }
     </script>
 </body>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Universal Viewer Host</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" type="text/css" href="uv.css">
+    <script type="text/javascript" src="umd/UV.js"></script>
+    <style>
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #uv {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="uv" class="uv"></div>
+
+    <script type="text/javascript">
+        let uvInstance = null;
+
+        function initializeUV(manifestId, canvasIndex) {
+            if (!manifestId) {
+                console.warn('Manifest ID is empty. UV will not be initialized.');
+                return;
+            }
+
+            const urlAdapter = new UV.IIIFURLAdapter(true);
+            const data = urlAdapter.getInitialData({
+                iiifManifestId: manifestId,
+                canvasIndex: canvasIndex || 0,
+                embedded: true,
+            });
+
+            uvInstance = UV.init('uv', data);
+
+            // uv-iiif-config.jsonをベースに、鮮明さ向上のための設定を反映
+            uvInstance.on('configure', function ({ cb }) {
+                cb(
+                    fetch('uv-iiif-config.json').then(function (resp) {
+                        return resp.json();
+                    })
+                );
+            });
+
+            // 現在表示中のページ（キャンバス）が変わるたびに親ページへ通知する。
+            // お気に入り登録時に「今見ているページ」を保存できるようにするため。
+            uvInstance.on(UV.IIIFEvents.CANVAS_INDEX_CHANGE, function (index) {
+                window.parent.postMessage({ type: 'uvCanvasIndexChange', canvasIndex: index }, '*');
+            });
+        }
+
+        // Parent page message listener
+        window.addEventListener('message', function (event) {
+            if (event.data && event.data.type === 'loadManifest') {
+                initializeUV(event.data.manifestUrl, event.data.canvasIndex);
+            }
+        });
+
+        // Handle initial manifest from URL parameter (for direct access/debugging)
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialManifest = urlParams.get('manifest');
+        if (initialManifest) {
+            const canvasIndex = parseInt(urlParams.get('canvasIndex'), 10) || 0;
+            initializeUV(initialManifest, canvasIndex);
+        }
+    </script>
+</body>
+
+</html>

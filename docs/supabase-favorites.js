@@ -223,6 +223,7 @@
           instrument: d.instrument || null,
           mode: d.mode || null,
           collection: d.collection || null,
+          canvas_index: d.canvasIndex ? parseInt(d.canvasIndex, 10) : 0,
         };
         const { error } = await client.from("favorites").insert(row);
         // unique 制約違反（重複挿入）は成功扱いにする
@@ -296,6 +297,7 @@
             mode: r.mode,
             collection: r.collection,
             page_range: m ? m[1] : null,
+            canvas_index: r.canvas_index || 0,
           },
         };
       });
