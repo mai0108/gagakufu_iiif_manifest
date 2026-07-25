@@ -620,6 +620,9 @@
     }
     client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     GFav.client = client;
+    // 検索結果一覧の外（例: 「現在の楽譜」パネル）に置く独自の★ボタンからも
+    // 同じ登録・解除処理を呼べるようにする
+    GFav.toggleButton = toggleFavorite;
 
     injectUi();
     bindEvents();

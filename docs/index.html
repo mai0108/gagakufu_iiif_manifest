@@ -714,6 +714,54 @@
         transition: background 0.2s;
       }
 
+      .viewer-fav-btn {
+        position: absolute;
+        /* 全画面ボタンの左に並べて配置する */
+        right: 64px;
+        bottom: calc(12px + env(safe-area-inset-bottom));
+        z-index: 10000;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(30, 41, 59, 0.55);
+        color: #f5b301;
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        backdrop-filter: blur(4px);
+        transition: background 0.2s, transform 0.15s;
+      }
+
+      .viewer-fav-btn:hover {
+        background: rgba(30, 41, 59, 0.8);
+        transform: scale(1.1);
+      }
+
+      .fav-hint-bubble {
+        display: none;
+        position: absolute;
+        right: 8px;
+        bottom: calc(64px + env(safe-area-inset-bottom));
+        z-index: 10001;
+        background: rgba(15, 23, 42, 0.92);
+        color: white;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        white-space: nowrap;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      }
+
+      .fav-hint-bubble::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        right: 24px;
+        border: 6px solid transparent;
+        border-top-color: rgba(15, 23, 42, 0.92);
+      }
+
       .fullscreen-btn:hover {
         background: rgba(30, 41, 59, 0.8);
       }
@@ -992,6 +1040,20 @@
       </div>
 
       <div class="viewer-area">
+        <div class="fav-hint-bubble" id="favHintBubble">
+          ☆でお気に入りに登録できます
+        </div>
+        <button
+          type="button"
+          class="viewer-fav-btn"
+          id="currentManifestFavBtn"
+          style="display: none;"
+          title="お気に入りに登録/解除"
+          aria-label="お気に入り"
+          onclick="toggleCurrentManifestFavorite()"
+        >
+          ☆
+        </button>
         <button
           type="button"
           class="fullscreen-btn"
@@ -1155,10 +1217,73 @@
           document.getElementById(
             "currentPages"
           ).textContent = `${pageCount} ページ`;
+
+          updateCurrentManifestFavButton(url, title);
         } catch (error) {
           document.getElementById("currentTitle").textContent = "エラー";
           document.getElementById("currentPages").textContent = "-";
         }
+      }
+
+      // 現在表示中の楽譜（検索に出てこない資料も含む）に対するお気に入りボタンの表示を更新
+      function updateCurrentManifestFavButton(url, title) {
+        const btn = document.getElementById("currentManifestFavBtn");
+        if (!btn || !window.GFav) return;
+
+        const key = GFav.toPieceKey(url);
+        let collection = "";
+        if (url.includes("/100270332/") || url.includes("/100270332_pieces/")) {
+          collection = "宮内庁書陵部所蔵";
+        } else if (
+          url.includes("/100376839/") ||
+          url.includes("/100376839_pieces/")
+        ) {
+          collection = "東京藝術大学所蔵";
+        }
+
+        btn.dataset.pieceKey = key;
+        btn.dataset.name = title || "";
+        btn.dataset.instrument = "";
+        btn.dataset.mode = "";
+        btn.dataset.collection = collection;
+        btn.dataset.page = "";
+        btn.style.display = "inline-block";
+
+        const active = GFav.isFavorite(key);
+        btn.textContent = active ? "★" : "☆";
+        btn.classList.toggle("active", active);
+        btn.title = active ? "お気に入りから削除" : "お気に入りに追加";
+
+        maybeShowFavHint();
+      }
+
+      // お気に入りボタンの説明を、この端末で一度も見せていない場合だけ表示する
+      const FAV_HINT_STORAGE_KEY = "gagakufuFavHintShown";
+      function maybeShowFavHint() {
+        if (localStorage.getItem(FAV_HINT_STORAGE_KEY)) return;
+        const bubble = document.getElementById("favHintBubble");
+        if (!bubble) return;
+
+        localStorage.setItem(FAV_HINT_STORAGE_KEY, "1");
+        bubble.style.display = "block";
+
+        const hide = () => {
+          bubble.style.display = "none";
+        };
+        setTimeout(hide, 5000);
+        document.addEventListener("click", hide, { once: true });
+      }
+
+      // 「現在の楽譜」のお気に入りボタンが押されたときの処理
+      // このボタンはCSSの都合で.fav-btnクラスを使わないため、
+      // supabase-favorites.js側の自動同期(updateStarButtons)の対象外になる。
+      // そのため、切り替え後にここで手動で表示を更新する。
+      async function toggleCurrentManifestFavorite() {
+        const btn = document.getElementById("currentManifestFavBtn");
+        if (!btn || !window.GFav || !GFav.toggleButton) return;
+        await GFav.toggleButton(btn);
+        const title = document.getElementById("currentTitle").textContent;
+        updateCurrentManifestFavButton(currentManifestUrl, title);
       }
 
       // モバイル用：サイドバー（ドロワー）の開閉
@@ -2557,9 +2682,15 @@
       window.refreshFavoriteStars = function () {
         const list = document.getElementById("piecesList");
         // お気に入り一覧を表示中の場合は検索結果で上書きしない
-        if (list && list.dataset.view === "favorites") return;
-        if (currentSortedResults && currentSortedResults.length) {
+        if (list && list.dataset.view === "favorites") {
+          // do nothing to the list, but still refresh the current-manifest button below
+        } else if (currentSortedResults && currentSortedResults.length) {
           displayPiecesList(currentSortedResults);
+        }
+
+        if (currentManifestUrl) {
+          const title = document.getElementById("currentTitle").textContent;
+          updateCurrentManifestFavButton(currentManifestUrl, title);
         }
       };
 
