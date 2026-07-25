@@ -1099,8 +1099,6 @@
 
       // 全画面表示サポート関数
       function enableFullscreenSupport() {
-        const iframe = document.getElementById("viewerIframe"); // IDを汎用的なものに変更
-
         // PostMessage APIでiframe内からの全画面要求を監視
         window.addEventListener("message", function (event) {
           // セキュリティのため、Universal Viewerからのメッセージのみ処理
@@ -1114,7 +1112,8 @@
 
           // 全画面表示要求の処理
           if (event.data && event.data.type === "requestFullscreen") {
-            requestFullscreen(iframe);
+            // iframeは譜面切り替えのたびに作り直されるため、都度取得し直す
+            requestFullscreen(document.getElementById("viewerIframe"));
           }
 
           // 全画面終了要求の処理
@@ -1375,9 +1374,41 @@
         window.location.reload();
       }
 
+      // iframe内のURLを書き換える共通関数。
+      // iframe.srcへの再代入はiframe内の遷移として親ページの閲覧履歴に積まれてしまい、
+      // 譜面を切り替えるたびにブラウザの「戻る」がページ全体ではなくiframeの中の
+      // 一つ前の状態（about:blankなど）に戻ってしまう原因になる。
+      // location.replace()は現在の履歴エントリを置き換えるだけなので、この問題を防げる。
+      function navigateIframe(iframe, url) {
+        try {
+          iframe.contentWindow.location.replace(url);
+        } catch (error) {
+          // クロスオリジン等の理由でcontentWindowにアクセスできない場合のフォールバック
+          iframe.src = url;
+        }
+      }
+
+      // 譜面ビューアー用のiframeを新しい要素に丸ごと作り直す。
+      // Universal ViewerやMiradorはページ送り等に応じて自身のURL（ハッシュ）を
+      // 内部で書き換えており、これはこちらのlocation.replace対策とは無関係に
+      // ブラウザの閲覧履歴へ積まれてしまう。iframe要素ごと差し替えることで、
+      // その古いブラウジングコンテキストと蓄積した履歴を丸ごと破棄する。
+      function recreateViewerIframe() {
+        const old = document.getElementById("viewerIframe");
+        const fresh = document.createElement("iframe");
+        fresh.id = "viewerIframe";
+        fresh.title = "譜面ビューアー";
+        fresh.loading = "lazy";
+        fresh.setAttribute("allow", "fullscreen");
+        fresh.src = "about:blank";
+        old.replaceWith(fresh);
+        return fresh;
+      }
+
       // Universal Viewerを読み込む関数
       async function loadUniversalViewer(manifestUrlForUV) {
-        const iframe = document.getElementById("viewerIframe"); // IDを汎用的なものに変更
+        // 前の譜面でビューアーが内部に積んだ履歴ごと破棄するため作り直す
+        const iframe = recreateViewerIframe();
 
         try {
           const uvUrl = `${UV_BASE_URL}#?manifest=${encodeURIComponent(
@@ -1386,9 +1417,8 @@
 
           console.log("Universal Viewer URL:", uvUrl);
 
-          iframe.src = "about:blank";
           setTimeout(() => {
-            iframe.src = uvUrl;
+            navigateIframe(iframe, uvUrl);
 
             let loadTimeout = setTimeout(() => {
               console.error("Universal Viewer loading timeout");
@@ -1414,7 +1444,8 @@
 
       // Miradorを読み込む関数
       async function loadMiradorViewer(manifestUrlForUV) {
-        const iframe = document.getElementById("viewerIframe"); // IDを汎用的なものに変更
+        // 前の譜面でビューアーが内部に積んだ履歴ごと破棄するため作り直す
+        const iframe = recreateViewerIframe();
 
         try {
           // Miradorのembedパラメータで連続ロール（scroll）ビューを指定
@@ -1424,9 +1455,8 @@
 
           console.log("Mirador Viewer URL (continuous scroll):", miradorUrl);
 
-          iframe.src = "about:blank";
           setTimeout(() => {
-            iframe.src = miradorUrl;
+            navigateIframe(iframe, miradorUrl);
 
             let loadTimeout = setTimeout(() => {
               console.error("Mirador Viewer loading timeout");
@@ -1539,7 +1569,7 @@
       // ビューアーエリアにエラーメッセージを表示する関数
       function showErrorInViewer(message) {
         const iframe = document.getElementById("viewerIframe");
-        iframe.src = "about:blank"; // 現在のiframe内容をクリア
+        navigateIframe(iframe, "about:blank"); // 現在のiframe内容をクリア
         iframe.onload = () => {
           // iframeが完全にロードされた後にコンテンツを書き込む
           iframe.contentWindow.document.open();
@@ -1605,7 +1635,8 @@
         );
 
         const iframe = document.getElementById("viewerIframe"); // IDを汎用的なものに変更
-        iframe.src =
+        navigateIframe(
+          iframe,
           "data:text/html;charset=utf-8," +
           encodeURIComponent(`
                 <!DOCTYPE html>
@@ -1688,7 +1719,8 @@
                     </div>
                 <\/body>
                 <\/html>
-            `);
+            `)
+        );
       }
 
       // マニフェスト一覧でアクティブ状態を更新
@@ -2767,7 +2799,7 @@
 
         // 初期メッセージ
         const iframe = document.getElementById("viewerIframe"); // IDを汎用的なものに変更
-        iframe.src = "about:blank"; // Clear initial content
+        navigateIframe(iframe, "about:blank"); // Clear initial content
         iframe.onload = () => {
           // Ensure content is loaded before displaying message
           iframe.contentWindow.document.open();
