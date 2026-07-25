@@ -354,11 +354,6 @@
         border: none;
       }
 
-      /* 初期表示のピントを合わせるための微小リサイズ用（下のnudgeViewerResize参照） */
-      #viewerIframe.nudge-resize {
-        width: calc(100% - 1px) !important;
-      }
-
       .loading {
         display: flex;
         align-items: center;
@@ -1410,20 +1405,6 @@
         return fresh;
       }
 
-      // ビューアー内部の画像描画エンジン（OpenSeadragon）は、初期表示では
-      // まず粗い解像度のタイルを表示し、ピンチズームなど「サイズが変わる操作」を
-      // きっかけに鮮明なタイルへ描き直す。iframeの幅をごく僅か（1px）変えて
-      // 元に戻すことでその「サイズが変わる操作」を疑似的に発生させ、
-      // 手動でズームしなくても初期表示から鮮明にする。
-      function nudgeViewerResize(iframe) {
-        requestAnimationFrame(() => {
-          iframe.classList.add("nudge-resize");
-          requestAnimationFrame(() => {
-            iframe.classList.remove("nudge-resize");
-          });
-        });
-      }
-
       // Universal Viewerを読み込む関数
       async function loadUniversalViewer(manifestUrlForUV) {
         // 前の譜面でビューアーが内部に積んだ履歴ごと破棄するため作り直す
@@ -1447,8 +1428,6 @@
             iframe.onload = () => {
               clearTimeout(loadTimeout);
               console.log("Universal Viewer iframe loaded successfully");
-              // ビューアー初期化後の粗いタイル表示から鮮明な表示に切り替えさせる
-              setTimeout(() => nudgeViewerResize(iframe), 800);
             };
 
             iframe.onerror = () => {
@@ -1487,8 +1466,6 @@
             iframe.onload = () => {
               clearTimeout(loadTimeout);
               console.log("Mirador Viewer iframe loaded successfully");
-              // ビューアー初期化後の粗いタイル表示から鮮明な表示に切り替えさせる
-              setTimeout(() => nudgeViewerResize(iframe), 800);
             };
 
             iframe.onerror = () => {

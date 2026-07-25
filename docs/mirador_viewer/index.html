@@ -107,6 +107,31 @@
             };
 
             miradorInstance = Mirador.viewer(config);
+
+            // OpenSeadragonは初期表示では粗い解像度のタイルを表示し、
+            // ズーム操作をきっかけに鮮明なタイルへ描き直す仕様のため、
+            // 読み込み直後にごく僅かなズームイン/アウトを自動で発生させ、
+            // 手動でピンチズームしなくても初期表示から鮮明にする。
+            setTimeout(() => nudgeZoomToSharpen(container), 800);
+        }
+
+        function nudgeZoomToSharpen(container) {
+            const canvas = container.querySelector('.openseadragon-canvas');
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const clientX = rect.left + rect.width / 2;
+            const clientY = rect.top + rect.height / 2;
+            const fireWheel = (deltaY) => {
+                canvas.dispatchEvent(new WheelEvent('wheel', {
+                    deltaY,
+                    bubbles: true,
+                    cancelable: true,
+                    clientX,
+                    clientY
+                }));
+            };
+            fireWheel(-2);
+            requestAnimationFrame(() => fireWheel(2));
         }
 
         // Parent page message listener
