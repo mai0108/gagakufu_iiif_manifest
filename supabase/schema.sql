@@ -11,13 +11,23 @@
 --   collection   text  … 所蔵（資料）
 --   manifest_url text  … 楽曲マニフェストの公開 URL（お気に入りの照合キー）
 --   canvas_index integer … お気に入り登録時に表示していたページ（キャンバス）番号
+--   custom_name  text  … ユーザーが付けたお気に入り名（null なら曲名を表示）
 --   created_at   timestamptz
 --
--- canvas_index 列は後から追加したもの。既存環境では以下を Supabase の
--- SQL Editor で一度だけ実行して追加する（デフォルト 0 なので既存行も安全）。
+-- canvas_index / custom_name 列は後から追加したもの。既存環境では以下を
+-- Supabase の SQL Editor で一度だけ実行して追加する（既存行も安全）。
 --
 -- alter table public.favorites
 --   add column if not exists canvas_index integer not null default 0;
+-- alter table public.favorites
+--   add column if not exists custom_name text;
+--
+-- お気に入り名の編集には update ポリシーも必要（未作成なら以下を実行）:
+--
+-- create policy "update own favorites"
+--   on public.favorites for update
+--   using (auth.uid() = user_id)
+--   with check (auth.uid() = user_id);
 
 -- RLS は有効（未ログインの書き込みは 42501 で拒否されることを確認済み）。
 -- ログインユーザーが「自分の行だけ」読み書きできるポリシーの例:

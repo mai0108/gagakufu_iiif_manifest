@@ -98,6 +98,45 @@
     );
   };
 
+  // ------------------------------------------------------------
+  // お気に入り名の編集ボタン（お気に入り一覧のカードにのみ表示）
+  // ------------------------------------------------------------
+  GFav.editButtonHtml = function (piece) {
+    const meta = (piece && piece.metadata) || {};
+    if (!meta.fav_id) return ""; // お気に入り一覧の描画時のみ
+    return (
+      '<button class="fav-edit-btn" type="button"' +
+      ' data-fav-id="' + escAttr(meta.fav_id) + '"' +
+      ' data-custom-name="' + escAttr(meta.custom_name || "") + '"' +
+      ' title="お気に入り名を編集" aria-label="お気に入り名を編集">✏️</button>'
+    );
+  };
+
+  async function editFavoriteName(btn) {
+    const favId = btn.dataset.favId;
+    if (!favId || !client) return;
+    const input = window.prompt(
+      "お気に入り名を入力してください。\n（空のままOKを押すと元の曲名表示に戻ります）",
+      btn.dataset.customName || ""
+    );
+    if (input === null) return; // キャンセル
+    const name = input.trim();
+    try {
+      const { error } = await client
+        .from("favorites")
+        .update({ custom_name: name || null })
+        .eq("id", favId);
+      if (error) throw error;
+      showFavorites(); // 一覧を再描画して反映
+    } catch (e) {
+      console.error("お気に入り名の更新に失敗:", e);
+      setAuthMsg(
+        "お気に入り名の更新に失敗しました: " + (e.message || ""),
+        "error"
+      );
+    }
+  }
+
   // 特定キーの★ボタン表示を更新
   function updateStarButtons(pieceKey) {
     const active = GFav.favoriteKeys.has(pieceKey);
@@ -298,6 +337,8 @@
             collection: r.collection,
             page_range: m ? m[1] : null,
             canvas_index: r.canvas_index || 0,
+            fav_id: r.id,
+            custom_name: r.custom_name || null,
           },
         };
       });
@@ -385,6 +426,14 @@
       " transition: transform .15s ease, background-color .15s ease; }" +
       ".fav-btn:hover { transform: scale(1.2); background: rgba(0,0,0,0.06); }" +
       ".fav-btn.active { color: #f5b301; }" +
+      ".fav-edit-btn { position: absolute; top: 10px; right: 38px; background: none;" +
+      " border: none; cursor: pointer; font-size: 14px; line-height: 1;" +
+      " padding: 3px; border-radius: 50%; z-index: 2;" +
+      " transition: transform .15s ease, background-color .15s ease; }" +
+      ".fav-edit-btn:hover { transform: scale(1.2); background: rgba(0,0,0,0.06); }" +
+      // お気に入り一覧では★と✏️の2つ並ぶぶんタイトルの余白を広げる
+      '#piecesList[data-view="favorites"] .piece-title { padding-right: 62px; }' +
+      ".fav-custom-note { font-size: 11px; color: #888; margin-top: 2px; }" +
       "#favAuthSection input.fav-input { width: 100%; padding: 8px 10px;" +
       " border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" +
       " margin-bottom: 8px; }" +
@@ -451,6 +500,13 @@
       list.addEventListener(
         "click",
         function (e) {
+          const editBtn = e.target.closest(".fav-edit-btn");
+          if (editBtn) {
+            e.stopPropagation(); // ビューアーで開く動作を止める
+            e.preventDefault();
+            editFavoriteName(editBtn);
+            return;
+          }
           const btn = e.target.closest(".fav-btn");
           if (!btn) return;
           e.stopPropagation(); // ビューアーで開く動作を止める

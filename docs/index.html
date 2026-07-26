@@ -2686,6 +2686,15 @@
           return collection;
         }
 
+        // お気に入り名はユーザー入力なのでHTMLとして解釈されないようエスケープする
+        function escHtml(s) {
+          return String(s == null ? "" : s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
         if (pieces.length === 0) {
           piecesListContainer.innerHTML =
             '<div class="piece-item">検索条件に一致する楽曲が見つかりません</div>';
@@ -2694,6 +2703,11 @@
             .map((piece) => {
               const meta = piece.metadata;
               if (!meta) return ""; // メタデータがない場合は表示しない
+              // お気に入り一覧ではユーザーが付けた名前を優先表示する
+              const isFavCard = !!meta.fav_id;
+              const title = meta.custom_name
+                ? escHtml(meta.custom_name)
+                : meta.piece_name || "名称不明";
               return `
                     <div class="piece-item" onclick="loadManifest('${
                       piece["@id"]
@@ -2701,9 +2715,17 @@
                         ${
                           window.GFav ? window.GFav.starButtonHtml(piece) : ""
                         }
-                        <div class="piece-title">${
-                          meta.piece_name || "名称不明"
-                        }</div>
+                        ${
+                          window.GFav && window.GFav.editButtonHtml
+                            ? window.GFav.editButtonHtml(piece)
+                            : ""
+                        }
+                        <div class="piece-title">${title}</div>
+                        ${
+                          meta.custom_name && meta.piece_name
+                            ? `<div class="fav-custom-note">曲名: ${meta.piece_name}</div>`
+                            : ""
+                        }
                         <div class="piece-meta">
                             ${
                               meta.instrument
@@ -2725,6 +2747,13 @@
                             ${
                               meta.page_range
                                 ? `<span>ページ ${meta.page_range}</span>`
+                                : ""
+                            }
+                            ${
+                              isFavCard
+                                ? `<span>📖 ${
+                                    (meta.canvas_index || 0) + 1
+                                  }ページ目</span>`
                                 : ""
                             }
                         </div>
