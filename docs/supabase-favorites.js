@@ -244,14 +244,6 @@
         if (error) throw error;
         GFav.favoriteKeys.delete(key);
         updateStarButtons(key);
-
-        // お気に入り一覧を表示中なら、その場でカードを取り除く
-        const list = document.getElementById("piecesList");
-        if (list && list.dataset.view === "favorites") {
-          const item = btn.closest(".piece-item");
-          if (item) item.remove();
-          updateFavStats();
-        }
       } else {
         // 追加（unique 制約の有無が不明なため upsert ではなく insert を使う。
         // 事前に favoriteKeys で重複チェック済みなので実用上問題ない）
@@ -270,21 +262,19 @@
         GFav.favoriteKeys.add(key);
         updateStarButtons(key);
       }
+
+      // お気に入り一覧を表示中なら、追加・削除のどちらでも
+      // （ビューアー横の★ボタン経由も含めて）その場で一覧を再描画する
+      const list = document.getElementById("piecesList");
+      if (list && list.dataset.view === "favorites") {
+        showFavorites();
+      }
     } catch (e) {
       console.error("お気に入り更新に失敗:", e);
       setAuthMsg("お気に入りの更新に失敗しました: " + (e.message || ""), "error");
     } finally {
       btn.dataset.busy = "";
     }
-  }
-
-  // お気に入り一覧表示中の件数表示を更新
-  function updateFavStats() {
-    const stats = document.getElementById("searchStats");
-    const list = document.getElementById("piecesList");
-    if (!stats || !list) return;
-    const count = list.querySelectorAll(".piece-item").length;
-    stats.textContent = "⭐ お気に入り " + count + "曲";
   }
 
   // ------------------------------------------------------------
