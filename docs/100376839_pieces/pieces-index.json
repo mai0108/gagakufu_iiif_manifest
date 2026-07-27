@@ -4172,25 +4172,11 @@
         "filename": "龍笛_黄鐘調_鳥急_732-732.json",
         "collection": "東京藝術大学所蔵"
       }
-    },
-    {
-      "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100376839_pieces/琵琶_壱越調_絃合_945-946.json",
-      "@type": "sc:Manifest",
-      "label": "絃合 (琵琶 - 壱越調)",
-      "metadata": {
-        "instrument": "琵琶",
-        "mode": "壱越調",
-        "piece_name": "絃合",
-        "page_range": "945-946",
-        "filename": "琵琶_壱越調_絃合_945-946.json",
-        "collection": "東京藝術大学所蔵"
-      }
     }
   ],
   "statistics": {
-    "total_pieces": 322,
+    "total_pieces": 321,
     "instruments": [
-      "琵琶",
       "笙",
       "篳篥",
       "龍笛"
@@ -4204,7 +4190,7 @@
       "黄鐘調"
     ],
     "collections": {
-      "東京藝術大学所蔵": 322
+      "東京藝術大学所蔵": 321
     }
   }
 }
