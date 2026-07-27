@@ -4172,25 +4172,11 @@
         "filename": "龍笛_盤渉調_剣気褌脱_2295-2296.json",
         "collection": "宮内庁書陵部所蔵"
       }
-    },
-    {
-      "@id": "https://mai0108.github.io/gagakufu_iiif_manifest/100270332_pieces/琵琶_盤渉調_蘇合香_386-401.json",
-      "@type": "sc:Manifest",
-      "label": "蘇合香 (琵琶 - 盤渉調)",
-      "metadata": {
-        "instrument": "琵琶",
-        "mode": "盤渉調",
-        "piece_name": "蘇合香",
-        "page_range": "386-401",
-        "filename": "琵琶_盤渉調_蘇合香_386-401.json",
-        "collection": "宮内庁書陵部所蔵"
-      }
     }
   ],
   "statistics": {
-    "total_pieces": 322,
+    "total_pieces": 321,
     "instruments": [
-      "琵琶",
       "笙",
       "篳篥",
       "龍笛"
@@ -4204,7 +4190,7 @@
       "黄鐘調"
     ],
     "collections": {
-      "宮内庁書陵部所蔵": 322
+      "宮内庁書陵部所蔵": 321
     }
   }
 }
