@@ -172,6 +172,83 @@
       type === "error" ? "#c62828" : type === "success" ? "#2e7d32" : "#1565c0";
   }
 
+  // ------------------------------------------------------------
+  // 未ログイン時、押されたボタンの近くに吹き出しでログインを促す
+  // ------------------------------------------------------------
+  function showLoginPrompt(anchorEl) {
+    if (!anchorEl) {
+      // アンカーが無い場合は従来どおりサイドバーのメッセージにフォールバック
+      setAuthMsg("お気に入り機能を使うにはログインしてください。", "error");
+      return;
+    }
+
+    // 既存の吹き出しは先に削除し、常に1つだけ表示する
+    const existingTip = document.getElementById("favLoginTip");
+    if (existingTip) existingTip.remove();
+
+    const tip = document.createElement("div");
+    tip.id = "favLoginTip";
+    tip.className = "fav-login-tip";
+    tip.innerHTML =
+      "お気に入り機能を使うにはログインしてください。" +
+      '<button type="button" class="fav-login-tip-btn">ログイン欄へ</button>';
+    document.body.appendChild(tip);
+
+    // ボタンの直下（画面下端に近い場合は直上）に配置。左右は viewport 内にクランプ
+    const margin = 6;
+    const rect = anchorEl.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    const tipWidth = tipRect.width || 240;
+    const tipHeight = tipRect.height || 60;
+
+    let top = rect.bottom + margin;
+    if (top + tipHeight > window.innerHeight) {
+      top = rect.top - tipHeight - margin;
+    }
+    if (top < margin) top = margin;
+
+    let left = rect.left;
+    if (left + tipWidth > window.innerWidth - margin) {
+      left = window.innerWidth - tipWidth - margin;
+    }
+    if (left < margin) left = margin;
+
+    tip.style.top = top + "px";
+    tip.style.left = left + "px";
+
+    let autoTimer = null;
+
+    function removeTip() {
+      if (autoTimer) clearTimeout(autoTimer);
+      document.removeEventListener("click", onOutsideClick, true);
+      if (tip.parentNode) tip.parentNode.removeChild(tip);
+    }
+
+    function onOutsideClick(e) {
+      if (tip.contains(e.target)) return;
+      removeTip();
+    }
+
+    const goBtn = tip.querySelector(".fav-login-tip-btn");
+    if (goBtn) {
+      goBtn.addEventListener("click", function () {
+        removeTip();
+        const sec = document.getElementById("favAuthSection");
+        if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+        const emailInput = document.getElementById("favEmail");
+        if (emailInput) emailInput.focus({ preventScroll: true });
+      });
+    }
+
+    // 吹き出しを開いたクリック自体で即座に閉じてしまわないよう、
+    // 外側クリック監視は次のタスクで登録する
+    setTimeout(function () {
+      document.addEventListener("click", onOutsideClick, true);
+    }, 0);
+
+    autoTimer = setTimeout(removeTip, 6000);
+  }
+
   // Supabase の英語エラーを日本語に寄せる
   function jpAuthError(err) {
     const msg = (err && err.message) || "";
@@ -222,7 +299,7 @@
   // ------------------------------------------------------------
   async function toggleFavorite(btn) {
     if (!GFav.userId) {
-      setAuthMsg("お気に入り機能を使うにはログインしてください。", "error");
+      showLoginPrompt(btn);
       return;
     }
     const d = btn.dataset;
@@ -282,7 +359,8 @@
   // ------------------------------------------------------------
   async function showFavorites() {
     if (!GFav.userId) {
-      setAuthMsg("お気に入り機能を使うにはログインしてください。", "error");
+      // サイドバーの「⭐ お気に入り」ボタンの近くに吹き出しを表示する
+      showLoginPrompt(document.getElementById("favShowBtn"));
       return;
     }
     const results = document.getElementById("searchResults");
@@ -428,7 +506,15 @@
       " border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" +
       " margin-bottom: 8px; }" +
       "#favAuthSection input.fav-input:focus { outline: none;" +
-      " border-color: #2196f3; box-shadow: 0 0 5px rgba(33,150,243,0.3); }";
+      " border-color: #2196f3; box-shadow: 0 0 5px rgba(33,150,243,0.3); }" +
+      // 未ログイン時にボタン付近へ表示するログイン誘導の吹き出し
+      ".fav-login-tip { position: fixed; z-index: 10000; background: #fff;" +
+      " border: 1px solid #ddd; border-radius: 6px;" +
+      " box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px;" +
+      " padding: 10px 12px; max-width: 240px; line-height: 1.5; color: #333; }" +
+      ".fav-login-tip-btn { display: block; margin-top: 6px; background: none;" +
+      " border: none; color: #1565c0; font-size: 12px; cursor: pointer;" +
+      " padding: 0; text-decoration: underline; }";
     document.head.appendChild(style);
 
     // ログイン欄（サイドバー先頭に .section として挿入）
